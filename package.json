@@ -1,0 +1,12 @@
+{
+  "name": "damarfm-proxy",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.10.1",
+    "icy": "^2.1.1"
+  }
+}
