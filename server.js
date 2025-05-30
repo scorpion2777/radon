@@ -1,7 +1,7 @@
 const icy = require("icy");
 const fetch = require("node-fetch");
 
-const m3uUrl = "https://nediranlat.com/radyo/radyolar.m3u";
+const streamUrl = "https://yayin.damarfm.com/dinle/stream";
 const firebaseUrl = "https://canlisohbetproj-default-rtdb.firebaseio.com/damarfm.json";
 
 function updateNowPlaying() {
