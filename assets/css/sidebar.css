@@ -1,0 +1,322 @@
+/* ============================================================
+   RADIOTHEME - sidebar.css
+   Sidebar columns: ad zones, widgets, sticky behavior
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   SIDEBAR COLUMN BASE
+   ------------------------------------------------------------ */
+.sidebar-column {
+    display:        flex;
+    flex-direction: column;
+    gap:            var(--space-4);
+}
+
+.sidebar-sticky {
+    position: sticky;
+    top:       calc(var(--header-height) + var(--space-4));
+    display:   flex;
+    flex-direction: column;
+    gap:       var(--space-4);
+}
+
+/* ------------------------------------------------------------
+   AD ZONE CONTAINERS
+   ------------------------------------------------------------ */
+.ad-zone {
+    background:     var(--color-bg-secondary);
+    border:         1px solid var(--color-border-light);
+    border-radius:  var(--radius-lg);
+    overflow:       hidden;
+    display:        flex;
+    align-items:    center;
+    justify-content: center;
+    position:       relative;
+}
+
+/* Label for ad zones */
+.ad-zone-label {
+    position:       absolute;
+    top:            var(--space-2);
+    left:           var(--space-2);
+    font-size:      9px;
+    font-weight:    var(--font-weight-semibold);
+    color:          var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wider);
+    background:     var(--color-bg);
+    padding:        2px var(--space-2);
+    border-radius:  var(--radius-sm);
+    pointer-events: none;
+    z-index:        1;
+}
+
+/* Placeholder when no ad is loaded */
+.ad-zone-placeholder {
+    display:          flex;
+    flex-direction:   column;
+    align-items:      center;
+    justify-content:  center;
+    color:            var(--color-border);
+    font-size:        var(--font-size-xs);
+    font-weight:      var(--font-weight-medium);
+    letter-spacing:   var(--letter-spacing-wide);
+    text-transform:   uppercase;
+    gap:              var(--space-2);
+    background:       repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 8px,
+        rgba(0,0,0,0.02) 8px,
+        rgba(0,0,0,0.02) 16px
+    );
+    width:            100%;
+    height:           100%;
+    min-height:       inherit;
+}
+
+/* 300x250 - Medium Rectangle */
+.ad-zone-300x250 {
+    width:      300px;
+    min-height: 250px;
+    max-width:  100%;
+}
+
+/* 300x600 - Half Page */
+.ad-zone-300x600 {
+    width:      300px;
+    min-height: 600px;
+    max-width:  100%;
+}
+
+/* 160x600 - Wide Skyscraper */
+.ad-zone-160x600 {
+    width:      160px;
+    min-height: 600px;
+    max-width:  100%;
+    align-self: center;
+}
+
+/* 320x50 - Mobile Banner */
+.ad-zone-320x50 {
+    width:      320px;
+    min-height: 50px;
+    max-width:  100%;
+}
+
+/* ------------------------------------------------------------
+   SIDEBAR WIDGETS
+   ------------------------------------------------------------ */
+.sidebar-widget {
+    background:     var(--color-bg-secondary);
+    border:         1px solid var(--color-border-light);
+    border-radius:  var(--radius-lg);
+    padding:        var(--space-4);
+    overflow:       hidden;
+}
+
+.widget-title {
+    font-family:    var(--font-display);
+    font-size:      var(--font-size-sm);
+    font-weight:    var(--font-weight-bold);
+    color:          var(--color-text-primary);
+    letter-spacing: var(--letter-spacing-tight);
+    padding-bottom: var(--space-3);
+    margin-bottom:  var(--space-3);
+    border-bottom:  1px solid var(--color-border-light);
+    display:        flex;
+    align-items:    center;
+    gap:            var(--space-2);
+}
+
+.widget-title::before {
+    content:          '';
+    display:          block;
+    width:            3px;
+    height:           14px;
+    background-color: var(--color-accent);
+    border-radius:    2px;
+    flex-shrink:      0;
+}
+
+/* ------------------------------------------------------------
+   POPULAR STATIONS WIDGET
+   ------------------------------------------------------------ */
+.widget-popular-stations .popular-station-item {
+    display:         flex;
+    align-items:     center;
+    gap:             var(--space-3);
+    padding:         var(--space-2) 0;
+    border-bottom:   1px solid var(--color-border-light);
+    cursor:          pointer;
+    transition:      all var(--transition-fast);
+    text-decoration: none;
+    color:           inherit;
+}
+
+.widget-popular-stations .popular-station-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.widget-popular-stations .popular-station-item:hover .popular-station-name {
+    color: var(--color-accent);
+}
+
+.popular-station-rank {
+    font-family:    var(--font-display);
+    font-size:      var(--font-size-sm);
+    font-weight:    var(--font-weight-extrabold);
+    color:          var(--color-border);
+    width:          20px;
+    flex-shrink:    0;
+    text-align:     center;
+}
+
+.popular-station-item:nth-child(1) .popular-station-rank { color: #FFD700; }
+.popular-station-item:nth-child(2) .popular-station-rank { color: #C0C0C0; }
+.popular-station-item:nth-child(3) .popular-station-rank { color: #CD7F32; }
+
+.popular-station-logo {
+    width:         36px;
+    height:        36px;
+    border-radius: var(--radius-sm);
+    object-fit:    cover;
+    flex-shrink:   0;
+    background:    var(--color-bg);
+    border:        1px solid var(--color-border-light);
+}
+
+.popular-station-info {
+    flex:     1;
+    min-width: 0;
+}
+
+.popular-station-name {
+    font-size:      var(--font-size-xs);
+    font-weight:    var(--font-weight-semibold);
+    color:          var(--color-text-primary);
+    white-space:    nowrap;
+    overflow:       hidden;
+    text-overflow:  ellipsis;
+    transition:     color var(--transition-fast);
+}
+
+.popular-station-country {
+    font-size:  10px;
+    color:      var(--color-text-muted);
+    font-weight: var(--font-weight-medium);
+    margin-top: 1px;
+}
+
+/* ------------------------------------------------------------
+   GENRE CLOUD WIDGET
+   ------------------------------------------------------------ */
+.widget-genre-cloud .genre-cloud {
+    display:  flex;
+    flex-wrap: wrap;
+    gap:      var(--space-2);
+    padding-top: var(--space-1);
+}
+
+.genre-cloud-tag {
+    display:        inline-flex;
+    align-items:    center;
+    padding:        var(--space-1) var(--space-3);
+    background:     var(--color-bg);
+    border:         1px solid var(--color-border);
+    border-radius:  var(--radius-full);
+    font-size:      var(--font-size-xs);
+    font-weight:    var(--font-weight-medium);
+    color:          var(--color-text-secondary);
+    text-decoration: none;
+    transition:     all var(--transition-fast);
+    white-space:    nowrap;
+}
+
+.genre-cloud-tag:hover {
+    border-color: var(--color-accent);
+    color:        var(--color-accent);
+    background:   var(--color-accent-alpha);
+    transform:    translateY(-1px);
+}
+
+.genre-cloud-tag[data-count] {
+    font-size: calc(var(--font-size-xs) + 1px);
+}
+
+/* ------------------------------------------------------------
+   COUNTRY LIST WIDGET
+   ------------------------------------------------------------ */
+.widget-countries .country-list {
+    display:        flex;
+    flex-direction: column;
+    gap:            var(--space-1);
+}
+
+.country-list-item {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    padding:         var(--space-2) var(--space-3);
+    border-radius:   var(--radius-md);
+    text-decoration: none;
+    color:           var(--color-text-secondary);
+    font-size:       var(--font-size-sm);
+    font-weight:     var(--font-weight-medium);
+    transition:      all var(--transition-fast);
+}
+
+.country-list-item:hover {
+    background:  var(--color-bg);
+    color:       var(--color-accent);
+    padding-left: var(--space-4);
+}
+
+.country-list-item-left {
+    display:     flex;
+    align-items: center;
+    gap:         var(--space-2);
+}
+
+.country-flag-emoji {
+    font-size: 1.1em;
+}
+
+.country-station-count {
+    font-size:   var(--font-size-xs);
+    color:       var(--color-text-muted);
+    font-weight: var(--font-weight-medium);
+    background:  var(--color-bg);
+    padding:     1px var(--space-2);
+    border-radius: var(--radius-full);
+}
+
+/* ------------------------------------------------------------
+   RESPONSIVE
+   ------------------------------------------------------------ */
+@media (max-width: 1200px) {
+    .ad-zone-160x600 {
+        width:      100%;
+        min-height: 250px;
+    }
+}
+
+@media (max-width: 1024px) {
+    .sidebar-sticky {
+        position: static;
+    }
+
+    .ad-zone-300x600 {
+        min-height: 250px;
+    }
+}
+
+@media (max-width: 768px) {
+    .ad-zone-300x250,
+    .ad-zone-300x600,
+    .ad-zone-160x600 {
+        width:      100%;
+        min-height: 100px;
+    }
+}

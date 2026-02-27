@@ -1,0 +1,1189 @@
+/**
+ * RadioTheme - player.js  v5.5-FIXED
+ *
+ * DÜZELTMELER v5.4:
+ *  1. $ DOM objesi artık init() içinde bindDom() ile bağlanıyor.
+ *     Önceden modül parse sırasında getElementById çağrılıyordu;
+ *     script footer'dan önce yüklenirse null gelir, listener bağlanamaz.
+ *
+ *  2. updatePlayerBar() her çağrıda getElementById ile de fallback yapıyor.
+ *
+ *  3. AJAX navigasyon → ana sayfa: body class güncellemesi eklendi.
+ */
+
+( function() {
+    'use strict';
+
+    var state = {
+        isPlaying:      false,
+        currentStation: null,
+        volume:         1,
+        isMuted:        false,
+        playlist:       [],
+        currentIndex:   -1,
+        _mseAbort:      null,   /* MSE fetch AbortController */
+    };
+
+    /* ---- SEAMLESS RECONNECT: ikinci audio elementi ---- */
+    /* $.audio = aktif çalan, $.audioB = arka planda yüklenen */
+    /* Hazır olunca swap yapılır — kullanıcı kopukluk duymaz  */
+
+    /* DOM refs — init() içinde doldurulur */
+    var $ = {};
+
+    function bindDom() {
+        $.playBtn         = document.getElementById( 'player-btn-play' );
+        $.prevBtn         = document.getElementById( 'player-btn-prev' );
+        $.nextBtn         = document.getElementById( 'player-btn-next' );
+        $.shareBtn        = document.getElementById( 'player-btn-share' );
+        $.stationName     = document.getElementById( 'player-station-name' );
+        $.stationLogo     = document.getElementById( 'player-logo-img' );
+        $.logoFallback    = document.getElementById( 'player-logo-fallback' );
+        $.playerBar       = document.getElementById( 'radio-player-bar' );
+        $.equalizer       = document.getElementById( 'player-equalizer' );
+        $.errorMsg        = document.getElementById( 'player-error-msg' );
+        /* Ses kontrolleri — detay sayfasında */
+        $.stationVolBtn    = document.getElementById( 'station-volume-btn' );
+        $.stationVolSlider = document.getElementById( 'station-volume-slider' );
+        $.stationVolLabel  = document.getElementById( 'station-volume-label' );
+        $.nowPlaying       = document.getElementById( 'player-now-playing' );
+    }
+
+    function getIcon( btn, type ) {
+        if ( ! btn ) return null;
+        return btn.querySelector( '.icon-' + type ) ||
+               btn.querySelector( '[class*="icon-' + type + '"]' );
+    }
+
+    /* ---- LOAD STATION ---- */
+    function loadStation( stationData ) {
+        if ( ! stationData ) { showError( 'Istasyon verisi yok' ); return; }
+        if ( ! stationData.streamUrl && stationData.streamurl ) {
+            stationData.streamUrl = stationData.streamurl;
+        }
+        if ( ! stationData.streamUrl ) { showError( 'Stream URL bulunamadi' ); return; }
+        /* Ayni istasyon zaten caliyorsa sadece UI guncelle — AMA reconnect modunda değilse.
+         * reconnecting=true ise stream'i yeniden başlatmak gerekiyor. */
+        if ( ! reconnecting && state.isPlaying && state.currentStation && String(state.currentStation.id) === String(stationData.id) ) {
+            updateNowPlaying( stationData );
+            updateAll();
+            if ( stationData.songUrl && ! songTitleTimer ) {
+                startSongTitlePolling( stationData.songUrl );
+            }
+            return;
+        }
+        state.currentStation = stationData;
+        showLoading( true );
+        hideError();
+        updateNowPlaying( stationData );
+        /* Şarkı adı polling: yeni istasyonun song_url'si varsa başlat */
+        stopSongTitlePolling();
+        clearNowPlaying();
+        if ( stationData.songUrl ) {
+            startSongTitlePolling( stationData.songUrl );
+        } else {
+        }
+
+        /* Onceki stream'i durdur (MSE + HLS) */
+        if ( state._mseAbort ) { state._mseAbort.abort(); state._mseAbort = null; }
+        if ( $.audio && $.audio.src && $.audio.src.indexOf( 'blob:' ) === 0 ) {
+            URL.revokeObjectURL( $.audio.src );
+        }
+        if ( $.hls ) { $.hls.destroy(); $.hls = null; }
+        $.audio.pause();
+        $.audio.removeAttribute( 'src' );
+        $.audio.load();
+
+        var url = stationData.streamUrl;
+
+        function doPlay() {
+            var p = $.audio.play();
+            if ( p !== undefined ) {
+                p.then( function() {
+                    state.isPlaying = true;
+                    showLoading( false );
+                    updateAll();
+                } )
+                .catch( function( err ) {
+                    console.warn( '[RadioPlayer] play() hatası:', err && err.name, err && err.message );
+
+                    /* NotAllowedError = tarayıcı autoplay engeli
+                     * Kullanıcı etkileşimi bekliyoruz, reconnect döngüsüne GIRME */
+                    if ( err && err.name === 'NotAllowedError' ) {
+                        showLoading( false );
+                        showError( 'Oynatmak için tıklayın' );
+                        state.isPlaying = false;
+                        updateAll();
+                        return; // reconnect yok
+                    }
+
+                    /* NotSupportedError = Tarayıcı URL'e doğrudan bağlanamadı
+                     * (SSL sertifika hatası, port kapalı vb.)
+                     * Strateji: proxy üzerinden dene (curl ile SSL bypass) */
+                    if ( err && err.name === 'NotSupportedError' ) {
+                        var proxied = proxyUrl( stationData.streamUrl );
+                        var srcNow  = $.audio.src || '';
+
+                        /* Henüz proxy denenmemişse → proxy ile dene */
+                        if ( proxied !== srcNow ) {
+                            console.warn( '[RadioPlayer] NotSupportedError → proxy deneniyor:', proxied );
+                            $.audio.src = proxied;
+                            doPlay();
+                            return;
+                        }
+
+                        /* Proxy de başarısız → yedek URL */
+                        if ( ! stationData._triedBackup && stationData.backupUrl ) {
+                            stationData._triedBackup = true;
+                            startStream( stationData.backupUrl, true );
+                        } else {
+                            showError( 'Stream açılamıyor' );
+                            state.isPlaying = false; showLoading( false ); updateAll();
+                        }
+                        return;
+                    }
+
+                    /* Diğer hatalar: bir kez yedek URL dene, sonra dur */
+                    if ( ! stationData._triedBackup && stationData.backupUrl ) {
+                        stationData._triedBackup = true;
+                        startStream( stationData.backupUrl, true );
+                    } else {
+                        showError( 'Stream başlatılamadı' );
+                        state.isPlaying = false; showLoading( false ); updateAll();
+                    }
+                } );
+            } else {
+                /* Eski tarayıcı — promise yok, direkt oynar */
+                state.isPlaying = true; showLoading( false ); updateAll();
+            }
+        }
+
+        function proxyUrl( u ) {
+            var proxyBase = ( window.radioThemeData && window.radioThemeData.proxyUrl ) ? window.radioThemeData.proxyUrl : '';
+            if ( ! proxyBase ) return u;
+            if ( u.indexOf( proxyBase ) === 0 ) return u; // Zaten proxy URL
+
+            /* http:// → her zaman proxy (mixed content engeli) */
+            if ( u.indexOf( 'http://' ) === 0 ) {
+                return proxyBase + encodeURIComponent( u );
+            }
+            /* https:// non-std port veya IP → proxy (curl SSL bypass ile çalışır) */
+            if ( u.indexOf( 'https://' ) === 0 ) {
+                try {
+                    var parsed = new URL( u );
+                    var port   = parseInt( parsed.port, 10 );
+                    var host   = parsed.hostname;
+                    var isIP   = /^\d{1,3}(\.\d{1,3}){3}$/.test( host );
+                    var nonStd = port && port !== 443;
+                    if ( isIP || nonStd ) {
+                        return proxyBase + encodeURIComponent( u );
+                    }
+                } catch(e) {}
+            }
+            /* Normal https:// → doğrudan */
+            return u;
+        }
+
+        /* ----------------------------------------------------------
+         * startMseStream: HTTP radyoları PHP proxy KULLANMADAN çalar.
+         * fetch() + MediaSource API ile doğrudan tarayıcı tamponuna
+         * yazar. Cart curt problemi tamamen ortadan kalkar.
+         * ---------------------------------------------------------- */
+        function startMseStream( streamUrl ) {
+            var mime = 'audio/mpeg';
+            if ( /\.aac/i.test( streamUrl ) ) mime = 'audio/aac';
+
+            /* MSE veya codec desteklenmiyorsa proxy fallback */
+            if ( ! window.MediaSource || ! MediaSource.isTypeSupported( mime ) ) {
+                startProxyStream( streamUrl, false ); return;
+            }
+
+            /* Önceki MSE varsa iptal et */
+            if ( state._mseAbort ) { state._mseAbort.abort(); state._mseAbort = null; }
+            if ( $.audio.src && $.audio.src.indexOf( 'blob:' ) === 0 ) {
+                URL.revokeObjectURL( $.audio.src );
+            }
+
+            var ms  = new MediaSource();
+            var blobUrl = URL.createObjectURL( ms );
+            $.audio.src = blobUrl;
+
+            ms.addEventListener( 'sourceopen', function() {
+                var sb;
+                try { sb = ms.addSourceBuffer( mime ); }
+                catch(e) { startProxyStream( streamUrl, false ); return; }
+
+                sb.mode = 'sequence';
+                var queue     = [];
+                var appending = false;
+                var done      = false;
+
+                function appendNext() {
+                    if ( appending || ! queue.length ) return;
+                    if ( ms.readyState !== 'open' ) return;
+                    appending = true;
+                    try { sb.appendBuffer( queue.shift() ); }
+                    catch(e) { appending = false; }
+                }
+
+                sb.addEventListener( 'updateend', function() {
+                    appending = false;
+                    /* Eski buffer'ı temizle — 30 sn üstü */
+                    if ( sb.buffered.length ) {
+                        var e = sb.buffered.end( sb.buffered.length - 1 );
+                        var s = sb.buffered.start( 0 );
+                        if ( e - s > 30 ) {
+                            try { sb.remove( s, e - 20 ); return; } catch(x) {}
+                        }
+                    }
+                    appendNext();
+                    if ( done && ! queue.length ) { try { ms.endOfStream(); } catch(x) {} }
+                } );
+
+                doPlay();
+
+                var ctrl = new AbortController();
+                state._mseAbort = ctrl;
+
+                fetch( streamUrl, {
+                    signal:  ctrl.signal,
+                    headers: { 'Icy-MetaData': '1' },
+                    cache:   'no-store'
+                } )
+                .then( function( r ) {
+                    if ( ! r.ok ) throw new Error( 'HTTP ' + r.status );
+                    var reader = r.body.getReader();
+                    (function pump() {
+                        reader.read().then( function( chunk ) {
+                            if ( chunk.done ) { done = true; appendNext(); return; }
+                            queue.push( chunk.value.buffer );
+                            appendNext();
+                            pump();
+                        } ).catch( function() {} );
+                    })();
+                } )
+                .catch( function( err ) {
+                    if ( err.name === 'AbortError' ) return;
+                    console.warn( '[MSE] fetch hatasi — proxy fallback:', err.message );
+                    startProxyStream( streamUrl, false );
+                } );
+            } );
+        }
+
+        /* ----------------------------------------------------------
+         * startProxyStream: HLS ve MSE desteklemeyen durumlar için.
+         * ---------------------------------------------------------- */
+        function startProxyStream( streamUrl, isBackup ) {
+            var proxied = proxyUrl( streamUrl );
+            var isHLS   = /\.m3u8/i.test( proxied ) || /mpegurl/i.test( proxied );
+            if ( isHLS && window.Hls && Hls.isSupported() ) {
+                if ( $.hls ) { $.hls.destroy(); }
+                $.hls = new Hls( { enableWorker: true, lowLatencyMode: false } );
+                $.hls.loadSource( proxied );
+                $.hls.attachMedia( $.audio );
+                $.hls.on( Hls.Events.MANIFEST_PARSED, function() { doPlay(); } );
+                $.hls.on( Hls.Events.ERROR, function( ev, data ) {
+                    if ( data.fatal ) {
+                        if ( ! isBackup && stationData.backupUrl ) { startProxyStream( stationData.backupUrl, true ); }
+                        else { showError( 'HLS hatası' ); state.isPlaying = false; showLoading( false ); updateAll(); }
+                    }
+                } );
+            } else if ( isHLS && $.audio.canPlayType( 'application/vnd.apple.mpegurl' ) ) {
+                $.audio.src = proxied; $.audio.load(); doPlay();
+            } else {
+                $.audio.src = proxied; doPlay();
+            }
+        }
+
+        /* ----------------------------------------------------------
+         * startStream — GİRİŞ NOKTASI
+         * HLS   → HLS.js ile doğrudan
+         * HTTP  → radio-proxy.php üzerinden (whitelist'e otomatik eklendi)
+         * HTTPS → audio.src ile doğrudan
+         * ---------------------------------------------------------- */
+        function startStream( streamUrl, isBackup ) {
+            var isHLS = /\.m3u8/i.test( streamUrl ) || /mpegurl/i.test( streamUrl );
+            if ( isHLS ) {
+                startProxyStream( streamUrl, isBackup );
+            } else if ( streamUrl.indexOf( 'http://' ) === 0 ) {
+                /* http:// → proxy (mixed content) */
+                startProxyStream( streamUrl, isBackup );
+            } else {
+                /* https:// → önce doğrudan dene.
+                 * NotSupportedError gelirse doPlay().catch proxy'ye yönlendirir. */
+                $.audio.src = streamUrl;
+                doPlay();
+            }
+        }
+
+        startStream( url, false );
+    }
+
+    /* ---- PLAY / PAUSE / STOP ---- */
+    function playStream() {
+        if ( ! $.audio || ! $.audio.src || $.audio.src === window.location.href ) { showError( 'Stream yüklenmedi' ); return; }
+        var p = $.audio.play();
+        if ( p !== undefined ) {
+            p.then( function() { state.isPlaying = true; updateAll(); } )
+             .catch( function() { showError( 'Stream başlatılamadı' ); state.isPlaying = false; updateAll(); showLoading( false ); } );
+        }
+    }
+
+    function pauseStream() {
+        if ( $.audio ) $.audio.pause();
+        state.isPlaying = false;
+        updateAll();
+    }
+
+    function stopStream() {
+        /* MSE stream'i durdur */
+        if ( state._mseAbort ) { state._mseAbort.abort(); state._mseAbort = null; }
+        if ( $.audio && $.audio.src && $.audio.src.indexOf( 'blob:' ) === 0 ) {
+            URL.revokeObjectURL( $.audio.src );
+        }
+        if ( $.hls ) { $.hls.destroy(); $.hls = null; }
+        if ( $.audio ) { $.audio.pause(); $.audio.src = ''; }
+        state.isPlaying      = false;
+        state.currentStation = null;
+        if ( $.playerBar ) $.playerBar.classList.remove( 'is-active' );
+        stopSongTitlePolling();
+        clearNowPlaying();
+        updateAll();
+        clearState();
+    }
+
+    /* =========================================================
+       ŞARKI ADI — songtitle_api.php üzerinden polling
+    ========================================================= */
+    var songTitleTimer   = null;
+    var SONG_POLL_INTERVAL = 10000; // 10 saniye
+
+    function startSongTitlePolling( songUrl ) {
+        stopSongTitlePolling();
+        if ( ! songUrl ) { clearNowPlaying(); return; }
+        fetchSongTitle( songUrl );                     // hemen ilk istek
+        songTitleTimer = setInterval( function() {
+            fetchSongTitle( songUrl );
+        }, SONG_POLL_INTERVAL );
+    }
+
+    function stopSongTitlePolling() {
+        if ( songTitleTimer ) { clearInterval( songTitleTimer ); songTitleTimer = null; }
+    }
+
+    /* =========================================================
+       iTUNES ALBÜM KAPAĞI — şarkı adına göre kapak çek
+    ========================================================= */
+    var _artworkCache   = {};
+    var _artworkPending = {};
+    var _lastArtworkTitle = '';
+
+    function fetchArtwork( title ) {
+        if ( ! title || title === _lastArtworkTitle ) return;
+        _lastArtworkTitle = title;
+
+        var artBase = ( window.radioThemeData && window.radioThemeData.itunesArtworkUrl )
+                      ? window.radioThemeData.itunesArtworkUrl : '';
+        if ( ! artBase ) return;
+
+        if ( Object.prototype.hasOwnProperty.call( _artworkCache, title ) ) {
+            applyArtwork( _artworkCache[ title ] );
+            return;
+        }
+        if ( _artworkPending[ title ] ) return;
+        _artworkPending[ title ] = true;
+
+        var reqUrl = artBase + '?title=' + encodeURIComponent( title );
+        fetch( reqUrl, { cache: 'no-store' } )
+            .then( function(r) { return r.ok ? r.json() : null; } )
+            .then( function(data) {
+                delete _artworkPending[ title ];
+                var url = ( data && data.artwork ) ? data.artwork : null;
+                _artworkCache[ title ] = url;
+                if ( title === _lastArtworkTitle ) { applyArtwork( url ); }
+                document.dispatchEvent( new CustomEvent( 'rt:artwork', {
+                    detail: { artworkUrl: url, title: title,
+                              stationId: state.currentStation ? state.currentStation.id : null }
+                } ) );
+            } )
+            .catch( function() { delete _artworkPending[ title ]; } );
+    }
+
+    function applyArtwork( artworkUrl ) {
+        var logo = $.stationLogo || document.getElementById( 'player-logo-img' );
+        var fall = $.logoFallback || document.getElementById( 'player-logo-fallback' );
+        if ( ! logo ) return;
+        if ( artworkUrl ) {
+            var img = new Image();
+            img.onload = function() {
+                logo.src = artworkUrl;
+                logo.style.display = 'block';
+                if ( fall ) fall.style.display = 'none';
+            };
+            img.src = artworkUrl;
+        }
+    }
+
+    function fetchSongTitle( songUrl ) {
+        var proxyBase = ( window.radioThemeData && window.radioThemeData.songtitleUrl )
+                        ? window.radioThemeData.songtitleUrl
+                        : '';
+
+
+        if ( ! proxyBase ) {
+            return;
+        }
+        if ( ! songUrl ) {
+            return;
+        }
+
+        var requestUrl = proxyBase + '?stream_url=' + encodeURIComponent( songUrl );
+
+        fetch( requestUrl, { cache: 'no-store' } )
+            .then( function( r ) {
+                if ( ! r.ok ) throw new Error( 'HTTP ' + r.status );
+                return r.text();
+            } )
+            .then( function( title ) {
+                title = ( title || '' ).trim();
+                var ignored = [ '', 'şimdi çalıyor', 'simdi caliyor', '-' ];
+                var nowP = $.nowPlaying || document.getElementById( 'player-now-playing' );
+                if ( ! nowP ) {
+                    return;
+                }
+                if ( title && ignored.indexOf( title.toLowerCase() ) === -1 && title.length > 1 ) {
+                    nowP.textContent = '♪ ' + title;
+                    nowP.style.opacity = '1';
+                    fetchArtwork( title );
+                    document.dispatchEvent( new CustomEvent( 'rt:songtitle', { detail: { title: title, stationId: state.currentStation ? state.currentStation.id : null } } ) );
+                } else {
+                    nowP.textContent = '';
+                    nowP.style.opacity = '0';
+                    document.dispatchEvent( new CustomEvent( 'rt:songtitle', { detail: { title: '', stationId: state.currentStation ? state.currentStation.id : null } } ) );
+                }
+            } )
+            .catch( function( err ) {
+                clearNowPlaying();
+            } );
+    }
+
+    function clearNowPlaying() {
+        var nowP = $.nowPlaying || document.getElementById( 'player-now-playing' );
+        if ( nowP ) { nowP.textContent = ''; nowP.style.opacity = '0'; }
+    }
+
+
+    /* =========================================================
+       PROXY URL — module scope (seamless reconnect için gerekli)
+    ========================================================= */
+    function proxyUrlStatic( u ) {
+        var proxyBase = ( window.radioThemeData && window.radioThemeData.proxyUrl ) ? window.radioThemeData.proxyUrl : '';
+        if ( ! proxyBase || ! u ) return u;
+        if ( u.indexOf( proxyBase ) === 0 ) return u;
+        if ( u.indexOf( 'http://' ) === 0 ) return proxyBase + encodeURIComponent( u );
+        /* https:// non-std port / IP → proxy (curl SSL bypass ile çalışır) */
+        if ( u.indexOf( 'https://' ) === 0 ) {
+            try {
+                var parsed = new URL( u );
+                var port   = parseInt( parsed.port, 10 );
+                var host   = parsed.hostname;
+                var isIP   = /^[0-9]{1,3}(\.[0-9]{1,3}){3}$/.test( host );
+                var nonStd = port && port !== 443;
+                if ( isIP || nonStd ) return proxyBase + encodeURIComponent( u );
+            } catch(e) {}
+        }
+        return u;
+    }
+
+    /* =========================================================
+       OTOMATİK YENİDEN BAĞLANMA
+    ========================================================= */
+    var reconnectTimer    = null;
+    var reconnectAttempts = 0;
+    var reconnecting      = false; // scheduleReconnect sırasında emptied'i ignore et
+
+    function reconnectClear() {
+        if ( reconnectTimer ) { clearTimeout( reconnectTimer ); reconnectTimer = null; }
+        reconnectAttempts = 0;
+        reconnecting = false;
+        watchdogLastPing = Date.now(); /* watchdog'u sıfırla */
+    }
+
+    function scheduleReconnect( delay ) {
+        if ( reconnectTimer ) return;
+
+        /* 20 denemeden sonra pes et — muhtemelen sunucu kalıcı kapalı */
+        if ( reconnectAttempts >= 20 ) {
+            showLoading( false );
+            showError( 'Bağlantı kurulamadı. Farklı bir istasyon deneyin.' );
+            state.isPlaying = false;
+            reconnectAttempts = 0;
+            updateAll();
+            return;
+        }
+
+        /* Backoff: 1→0.8sn, 2→1.5sn, 3→3sn, 4+→5sn max — kopma belli olmasın */
+        var backoff = Math.min( 800 * Math.pow( 1.8, reconnectAttempts ), 5000 );
+        delay = ( delay !== undefined && delay !== null ) ? delay : backoff;
+
+        reconnectAttempts++;
+        showLoading( true );
+
+        reconnectTimer = setTimeout( function() {
+            reconnectTimer = null;
+            if ( ! state.currentStation ) return;
+
+            /* ---- HIZLI SRC-SWAP RECONNECT ----
+             * Mevcut $.audio elementini koru — autoplay policy'si zaten
+             * kabul edilmiş. Sadece src değiştir, hemen play() çağır.
+             * Kullanıcı çok kısa bir kesinti duyabilir ama ses geri gelir. */
+            var station = state.currentStation;
+
+            reconnecting = true;
+            state.isPlaying = true;
+            showLoading( true );
+
+            /* Mevcut stream'i durdur */
+            if ( state._mseAbort ) { state._mseAbort.abort(); state._mseAbort = null; }
+            if ( $.hls ) { $.hls.destroy(); $.hls = null; }
+            $.audio.pause();
+            $.audio.removeAttribute( 'src' );
+            $.audio.load();
+
+            /* Yeni src ata — proxy kararını proxyUrlStatic ile ver */
+            var newSrc = proxyUrlStatic( station.streamUrl );
+            $.audio.src = newSrc;
+            $.audio.volume = state.isMuted ? 0 : state.volume;
+
+            var p = $.audio.play();
+            reconnecting = false;
+
+            if ( p ) {
+                p.then( function() {
+                    state.isPlaying = true;
+                    showLoading( false );
+                    reconnectClear();
+                    updateAll();
+                    startLiveAnimation();
+                } ).catch( function( err ) {
+                    console.warn( '[RadioPlayer] Reconnect play hatası:', err && err.name );
+                    reconnecting = false;
+                    /* NotSupportedError → proxy ile dene */
+                    if ( err && err.name === 'NotSupportedError' ) {
+                        var proxied = proxyUrlStatic( station.streamUrl );
+                        if ( proxied !== newSrc ) {
+                            $.audio.src = proxied;
+                            $.audio.play().then( function() {
+                                state.isPlaying = true;
+                                showLoading( false );
+                                reconnectClear();
+                                updateAll();
+                                startLiveAnimation();
+                            } ).catch( function() {
+                                scheduleReconnect( 2000 );
+                            } );
+                            return;
+                        }
+                    }
+                    /* Diğer hatalar: tekrar dene */
+                    scheduleReconnect( 2000 );
+                } );
+            } else {
+                state.isPlaying = true;
+                showLoading( false );
+                reconnectClear();
+                updateAll();
+            }
+        }, delay );
+    }
+
+    function reconnectScheduleIfNeeded( delay ) {
+        if ( reconnectTimer ) return;
+        reconnectTimer = setTimeout( function() {
+            reconnectTimer = null;
+            if ( state.isPlaying || ! state.currentStation ) return;
+            scheduleReconnect( 0 );
+        }, delay );
+    }
+
+    function togglePlay() {
+        if ( state.isPlaying ) {
+            pauseStream();
+        } else if ( state.currentStation && state.currentStation.streamUrl ) {
+            /* src zaten yuklu mu? */
+            if ( $.audio.src && $.audio.src !== window.location.href ) {
+                /* devam et */
+                $.audio.play()
+                    .then( function() { state.isPlaying = true; updateAll(); } )
+                    .catch( function() { loadStation( state.currentStation ); } );
+            } else {
+                loadStation( state.currentStation );
+            }
+        } else {
+            loadFirstStation();
+        }
+    }
+
+    /* ---- UPDATE UI ---- */
+    /* ---- DETAIL PAGE SONG SYNC ---- */
+    /* Detay sayfasına AJAX ile girildiğinde inline script çalışmaz.
+       Bu fonksiyon rt:navigation-done'da çağrılır ve
+       mevcut çalan istasyonun şarkı adını detay sayfasına yazar. */
+    var detailSongObserver = null;
+
+    function initDetailSongSync() {
+        /* Sayfada detay şarkı elementi var mı? */
+        var songRow  = document.getElementById( 'sd-song-row' );
+        var songText = document.getElementById( 'sd-song-text' );
+        if ( ! songText || ! songRow ) return; /* Detay sayfası değil, çık */
+
+        /* Hangi istasyonun detay sayfasındayız?
+           Play butonu data-station-id'den okuyoruz */
+        var playBtn = document.querySelector( '.sd-play-btn[data-station-id]' );
+        var pageStationId = playBtn ? String( playBtn.dataset.stationId ) : null;
+        if ( ! pageStationId ) return;
+
+        /* Albüm kapağı için detay logo elementi */
+        var detailLogoImg  = document.getElementById( 'sd-logo-img' );
+        var detailLogoFall = document.getElementById( 'sd-logo-fallback' );
+        var _detailOrigSrc = detailLogoImg ? ( detailLogoImg.dataset.origSrc || detailLogoImg.src || '' ) : '';
+        var _detailLastArtTitle = '';
+
+        function isThisPlaying() {
+            return state.isPlaying
+                && state.currentStation
+                && String( state.currentStation.id ) === pageStationId;
+        }
+
+        function applyTitle( title ) {
+            if ( title ) {
+                songText.textContent = title;
+                songRow.classList.add( 'has-song' );
+                requestAnimationFrame( function() {
+                    var wrap = songText.parentElement;
+                    if ( wrap && songText.scrollWidth > wrap.clientWidth + 4 ) {
+                        songText.classList.add( 'is-marquee' );
+                    } else {
+                        songText.classList.remove( 'is-marquee' );
+                    }
+                } );
+            } else {
+                songText.textContent = '—'; /* — */
+                songRow.classList.remove( 'has-song' );
+                songText.classList.remove( 'is-marquee' );
+            }
+        }
+
+        /* Albüm kapağını detay logo alanına uygula */
+        function applyDetailArtwork( url ) {
+            if ( ! detailLogoImg ) return;
+            if ( url ) {
+                detailLogoImg.src = url;
+                detailLogoImg.style.display = 'block';
+                if ( detailLogoFall ) detailLogoFall.style.display = 'none';
+            } else {
+                /* Artwork yok → orijinal radyo logosuna geri dön */
+                if ( _detailOrigSrc ) {
+                    detailLogoImg.src = _detailOrigSrc;
+                    detailLogoImg.style.display = 'block';
+                } else {
+                    detailLogoImg.style.display = 'none';
+                }
+                if ( detailLogoFall ) detailLogoFall.style.display = '';
+            }
+        }
+
+        /* Şarkı adından albüm kapağı çek (cache'e önce bak) */
+        function fetchDetailArtwork( title ) {
+            if ( ! title || _detailLastArtTitle === title ) return;
+            _detailLastArtTitle = title;
+            /* 1. Önce in-memory cache'e bak */
+            if ( Object.prototype.hasOwnProperty.call( _artworkCache, title ) ) {
+                applyDetailArtwork( _artworkCache[ title ] );
+                return;
+            }
+            /* 2. Cache'de yoksa iTunes'a sor */
+            var artBase = ( window.radioThemeData && window.radioThemeData.itunesArtworkUrl )
+                          ? window.radioThemeData.itunesArtworkUrl : '';
+            if ( ! artBase ) return;
+            fetch( artBase + '?title=' + encodeURIComponent( title ), { cache: 'no-store' } )
+                .then( function( r ) { return r.ok ? r.json() : null; } )
+                .then( function( data ) {
+                    var url = ( data && data.artwork ) ? data.artwork : null;
+                    _artworkCache[ title ] = url; /* cache'e yaz */
+                    if ( title === _detailLastArtTitle ) applyDetailArtwork( url );
+                } )
+                .catch( function() {} );
+        }
+
+        function syncFromNowPlaying() {
+            if ( ! isThisPlaying() ) {
+                applyTitle( '' );
+                applyDetailArtwork( null ); /* Çalmıyorsa orijinal logoya dön */
+                _detailLastArtTitle = '';
+                return;
+            }
+            var np = $.nowPlaying || document.getElementById( 'player-now-playing' );
+            var raw = np ? ( np.textContent || '' ).replace( /^[♪\s]+/, '' ).trim() : '';
+            applyTitle( raw );
+            if ( raw ) fetchDetailArtwork( raw );
+        }
+
+        /* rt:songtitle event'ini dinle */
+        document.addEventListener( 'rt:songtitle', function( e ) {
+            var d = e.detail || {};
+            if ( String( d.stationId ) === pageStationId ) {
+                applyTitle( d.title || '' );
+                if ( d.title ) fetchDetailArtwork( d.title );
+            } else {
+                applyTitle( '' );
+            }
+        } );
+
+        /* rt:artwork event'ini dinle — en hızlı yol */
+        document.addEventListener( 'rt:artwork', function( e ) {
+            var d = e.detail || {};
+            if ( ( ! d.stationId || String( d.stationId ) === pageStationId ) && d.artworkUrl ) {
+                _detailLastArtTitle = d.title || _detailLastArtTitle;
+                applyDetailArtwork( d.artworkUrl );
+            }
+        } );
+
+        /* MutationObserver: player-now-playing değişimlerini izle */
+        if ( detailSongObserver ) { detailSongObserver.disconnect(); }
+        detailSongObserver = new MutationObserver( function() {
+            setTimeout( syncFromNowPlaying, 50 );
+        } );
+        var np = $.nowPlaying || document.getElementById( 'player-now-playing' );
+        if ( np ) { detailSongObserver.observe( np, { childList: true, subtree: true, characterData: true } ); }
+
+        /* Hemen mevcut değeri oku */
+        syncFromNowPlaying();
+    }
+
+    function updateAll() {
+        updatePlayerBar();
+        updatePageButtons();
+        saveState();
+    }
+
+    function updatePlayerBar() {
+        /* Fallback: $ boşsa doğrudan getElementById dene */
+        var btn = $.playBtn || document.getElementById( 'player-btn-play' );
+        if ( ! btn ) return;
+
+        var iconPlay  = getIcon( btn, 'play' );
+        var iconPause = getIcon( btn, 'pause' );
+
+        if ( state.isPlaying ) {
+            if ( iconPlay )  iconPlay.style.display  = 'none';
+            if ( iconPause ) iconPause.style.display = 'block';
+            btn.setAttribute( 'aria-label', 'Durdur' );
+        } else {
+            if ( iconPlay )  iconPlay.style.display  = 'block';
+            if ( iconPause ) iconPause.style.display = 'none';
+            btn.setAttribute( 'aria-label', 'Oynat' );
+        }
+    }
+
+    function updatePageButtons() {
+        var currentId = state.currentStation ? String( state.currentStation.id ) : null;
+
+        document.querySelectorAll( '.play-btn' ).forEach( function( btn ) {
+            var isCurrent = !! ( currentId && String( btn.dataset.stationId ) === currentId );
+            var ip = getIcon( btn, 'play' ), ipa = getIcon( btn, 'pause' );
+            if ( isCurrent && state.isPlaying ) {
+                btn.classList.add( 'is-playing' ); btn.classList.remove( 'is-paused' );
+                if ( ip ) ip.style.display = 'none'; if ( ipa ) ipa.style.display = 'block';
+            } else {
+                btn.classList.remove( 'is-playing' ); btn.classList.add( 'is-paused' );
+                if ( ip ) ip.style.display = 'block'; if ( ipa ) ipa.style.display = 'none';
+            }
+        } );
+
+        document.querySelectorAll( '.station-hero-play-btn' ).forEach( function( btn ) {
+            var isCurrent = !! ( currentId && String( btn.dataset.stationId ) === currentId );
+            var ip = getIcon( btn, 'play' ), ipa = getIcon( btn, 'pause' );
+            var label = btn.querySelector( '.play-btn-label' );
+            if ( isCurrent && state.isPlaying ) {
+                btn.classList.add( 'is-playing' ); btn.classList.remove( 'is-paused' );
+                if ( ip ) ip.style.display = 'none'; if ( ipa ) ipa.style.display = 'block';
+                if ( label ) label.textContent = 'Şimdi Çalıyor';
+            } else {
+                btn.classList.remove( 'is-playing' ); btn.classList.add( 'is-paused' );
+                if ( ip ) ip.style.display = 'block'; if ( ipa ) ipa.style.display = 'none';
+                if ( label ) label.textContent = 'İstasyonu Çal';
+            }
+        } );
+
+        document.querySelectorAll( '.radio-card' ).forEach( function( card ) {
+            var isCurrent = !! ( currentId && String( card.dataset.stationId ) === currentId );
+            isCurrent && state.isPlaying ? card.classList.add( 'is-playing' ) : card.classList.remove( 'is-playing' );
+        } );
+    }
+
+    /* ---- NOW PLAYING ---- */
+    function updateNowPlaying( station ) {
+        if ( $.stationName ) $.stationName.textContent = station.name || 'Bilinmeyen İstasyon';
+        var logo = station.logo || station.logoUrl || '';
+        if ( logo ) {
+            if ( $.stationLogo ) { $.stationLogo.src = logo; $.stationLogo.alt = station.name || ''; $.stationLogo.style.display = 'block'; }
+            if ( $.logoFallback ) $.logoFallback.style.display = 'none';
+        } else {
+            if ( $.logoFallback ) { $.logoFallback.textContent = ( station.name || 'R' ).charAt(0).toUpperCase(); $.logoFallback.style.display = 'flex'; }
+            if ( $.stationLogo ) $.stationLogo.style.display = 'none';
+        }
+        if ( $.playerBar ) $.playerBar.classList.add( 'is-active' );
+    }
+
+    /* ---- VOLUME ---- */
+    function setVolume( val ) {
+        state.volume = parseFloat( val );
+        if ( $.audio ) $.audio.volume = state.volume;
+        state.isMuted = ( state.volume === 0 );
+        updateVolumeUI(); saveState();
+    }
+
+    function toggleMute() {
+        if ( ! $.audio ) return;
+        if ( state.isMuted ) { $.audio.volume = state.volume || 1; state.isMuted = false; }
+        else { $.audio.volume = 0; state.isMuted = true; }
+        updateVolumeUI(); saveState();
+    }
+
+    function updateVolumeUI() {
+        var muted  = state.isMuted || state.volume === 0;
+        var pct    = Math.round( ( state.isMuted ? 0 : state.volume ) * 100 );
+
+        /* Detay sayfası volume buton ikonu */
+        var vBtn = $.stationVolBtn || document.getElementById( 'station-volume-btn' );
+        if ( vBtn ) {
+            vBtn.setAttribute( 'aria-label', muted ? 'Sesi Aç' : 'Sesi Kapat' );
+            var iconOn  = vBtn.querySelector( '.icon-vol-on' );
+            var iconOff = vBtn.querySelector( '.icon-vol-off' );
+            if ( iconOn )  iconOn.style.display  = muted ? 'none'  : 'inline';
+            if ( iconOff ) iconOff.style.display = muted ? 'inline' : 'none';
+        }
+
+        /* Detay sayfası slider */
+        var vSlider = $.stationVolSlider || document.getElementById( 'station-volume-slider' );
+        if ( vSlider ) vSlider.value = state.isMuted ? 0 : state.volume;
+
+        /* Detay sayfası % etiketi */
+        var vLabel = $.stationVolLabel || document.getElementById( 'station-volume-label' );
+        if ( vLabel ) vLabel.textContent = pct + '%';
+    }
+
+    /* ---- LOADING / ERROR ---- */
+    function showLoading( show ) {
+        if ( ! $.equalizer ) return;
+        show ? ( $.equalizer.classList.add( 'is-loading' ), $.equalizer.classList.remove( 'is-live' ) )
+             : $.equalizer.classList.remove( 'is-loading' );
+    }
+
+    function showError( msg ) {
+        if ( $.errorMsg ) { $.errorMsg.textContent = msg; $.errorMsg.style.display = 'block'; setTimeout( hideError, 5000 ); }
+        else console.warn( '[RadioPlayer]', msg );
+    }
+    function hideError() { if ( $.errorMsg ) $.errorMsg.style.display = 'none'; }
+    function startLiveAnimation() {
+        if ( $.equalizer ) { $.equalizer.classList.remove( 'is-loading' ); $.equalizer.classList.add( 'is-live' ); }
+        startWatchdog();
+    }
+    function stopLiveAnimation() {
+        if ( $.equalizer ) $.equalizer.classList.remove( 'is-live', 'is-loading' );
+        stopWatchdog();
+    }
+
+    /* ----------------------------------------------------------
+     * WATCHDOG: currentTime izle — 8 saniye hareket etmezse
+     * tarayıcı ses almıyor demektir (hosting PHP'yi kesti ama
+     * bağlantı hâlâ "200 açık" görünüyor). Sessizce yeniden bağlan.
+     * ---------------------------------------------------------- */
+    var watchdogTimer      = null;
+    var watchdogLastPing   = 0;   /* Son timeupdate zamanı (ms) */
+    var WATCHDOG_SILENCE   = 45000; /* 45 sn ses gelmezse gerçekten donmuştur */
+
+    function _watchdogPing() {
+        watchdogLastPing = Date.now();
+    }
+
+    function startWatchdog() {
+        stopWatchdog();
+        watchdogLastPing = Date.now(); /* Başlangıçta şimdiki zaman */
+        /* timeupdate: tarayıcı ses verisi aldıkça ateşlenir — currentTime'dan çok daha güvenilir */
+        $.audio.addEventListener( 'timeupdate', _watchdogPing );
+        /* Her 15 sn'de bir kontrol et */
+        watchdogTimer = setInterval( function() {
+            if ( ! state.isPlaying ) return;
+            if ( reconnecting ) return; /* Reconnect sürerken tetiklenme */
+            if ( reconnectTimer ) return; /* Zaten reconnect planlandı */
+            var silence = Date.now() - watchdogLastPing;
+            if ( silence > WATCHDOG_SILENCE ) {
+                console.warn( '[RadioPlayer] Watchdog: ' + Math.round(silence/1000) + 'sn ses yok, yeniden bağlanılıyor…' );
+                stopWatchdog();
+                scheduleReconnect( 1000 );
+            }
+        }, 15000 );
+    }
+
+    function stopWatchdog() {
+        if ( watchdogTimer ) { clearInterval( watchdogTimer ); watchdogTimer = null; }
+        if ( $.audio ) $.audio.removeEventListener( 'timeupdate', _watchdogPing );
+    }
+
+    /* ---- SHARE ---- */
+    function shareStation() {
+        if ( ! state.currentStation ) return;
+        if ( navigator.share ) navigator.share( { title: state.currentStation.name, url: location.href } ).catch( function(){} );
+        else if ( navigator.clipboard ) navigator.clipboard.writeText( location.href ).then( function() { showError( 'Link kopyalandı!' ); } );
+    }
+
+    /* ---- PLAYLIST ---- */
+    function buildPlaylist() {
+        state.playlist = [];
+        document.querySelectorAll( '[data-station-id]' ).forEach( function( el ) {
+            var url = el.dataset.streamUrl || '';
+            if ( ! url ) return;
+            if ( state.playlist.some( function(s) { return String(s.id) === String(el.dataset.stationId); } ) ) return;
+            state.playlist.push( { id: el.dataset.stationId, streamUrl: url, name: el.dataset.stationName || 'Bilinmeyen', logo: el.dataset.logo || el.dataset.stationLogo || '', country: el.dataset.country || '', songUrl: el.dataset.songUrl || '' } );
+        } );
+    }
+
+    function playNext() { buildPlaylist(); if ( ! state.playlist.length ) return; state.currentIndex = ( state.currentIndex + 1 ) % state.playlist.length; loadStation( state.playlist[ state.currentIndex ] ); }
+    function playPrev() { buildPlaylist(); if ( ! state.playlist.length ) return; state.currentIndex = ( state.currentIndex - 1 + state.playlist.length ) % state.playlist.length; loadStation( state.playlist[ state.currentIndex ] ); }
+    function loadFirstStation() { buildPlaylist(); if ( state.playlist.length ) { state.currentIndex = 0; loadStation( state.playlist[0] ); } }
+
+    /* ---- STATE PERSISTENCE ---- */
+    function saveState() {
+        try { localStorage.setItem( 'rt_player', JSON.stringify( { volume: state.volume, isMuted: state.isMuted, currentStation: state.currentStation } ) ); } catch(e) {}
+    }
+    function loadState() {
+        try {
+            var raw = localStorage.getItem( 'rt_player' );
+            if ( ! raw ) return;
+            var p = JSON.parse( raw );
+            state.volume  = p.volume !== undefined ? p.volume : 1;
+            state.isMuted = !! p.isMuted;
+            if ( $.audio ) $.audio.volume = state.isMuted ? 0 : state.volume;
+            updateVolumeUI();
+            /* streamUrl yoksa streamurl (kucuk harf) de dene - eski kayit uyumlulugu */
+            var savedStation = p.currentStation;
+            if ( savedStation && ! savedStation.streamUrl && savedStation.streamurl ) {
+                savedStation.streamUrl = savedStation.streamurl;
+            }
+            if ( savedStation && savedStation.streamUrl ) {
+                state.currentStation = savedStation;
+                state.isPlaying = false;
+                updateNowPlaying( savedStation );
+                updateAll();
+            }
+        } catch(e) { console.warn('[RadioPlayer] loadState error', e); }
+    }
+    function clearState() { try { localStorage.removeItem( 'rt_player' ); } catch(e) {} }
+
+    /* ---- STATION CLICK ---- */
+    function handleStationClick( el ) {
+        var url = el.dataset.streamUrl;
+        if ( ! url || ! url.trim() ) return;
+        var stationData = { id: el.dataset.stationId || '', streamUrl: url, name: el.dataset.stationName || 'Bilinmeyen İstasyon', logo: el.dataset.logo || el.dataset.stationLogo || '', country: el.dataset.country || '', songUrl: el.dataset.songUrl || '' };
+        if ( state.currentStation && String( state.currentStation.id ) === String( stationData.id ) ) {
+            togglePlay();
+        } else {
+            buildPlaylist();
+            state.currentIndex = state.playlist.findIndex( function(s) { return String(s.id) === String(stationData.id); } );
+            loadStation( stationData );
+        }
+    }
+
+    /* ---- AUDIO EVENTS — yeni audio elementine de bağlanabilir ---- */
+    function bindAudioEvents( audio ) {
+        /* Önceki listener'ları temizlemek için klonla — sonra ekle */
+        /* (Basit yaklaşım: her seferinde yeni element geliyor zaten) */
+
+        audio.addEventListener( 'playing', function() {
+            if ( audio !== $.audio ) return; /* Eski element — ignore */
+            state.isPlaying = true;
+            showLoading( false );
+            reconnecting = false;
+            updateAll();
+            startLiveAnimation();
+            reconnectClear();
+        } );
+
+        audio.addEventListener( 'pause', function() {
+            if ( audio !== $.audio ) return;
+            if ( reconnecting ) return;
+            state.isPlaying = false; updateAll(); stopLiveAnimation();
+        } );
+
+        audio.addEventListener( 'waiting', function() {
+            if ( audio !== $.audio ) return;
+            showLoading( true );
+        } );
+
+        audio.addEventListener( 'canplay', function() {
+            if ( audio !== $.audio ) return;
+            showLoading( false );
+        } );
+
+        audio.addEventListener( 'error', function() {
+            if ( audio !== $.audio ) return;
+            if ( reconnecting ) return;
+            if ( ! state.currentStation ) return;
+            var code = audio.error ? audio.error.code : 0;
+            console.warn( '[RadioPlayer] Audio error, kod:', code );
+            state.isPlaying = true;
+            scheduleReconnect( 0 );
+        } );
+
+        audio.addEventListener( 'stalled', function() {
+            if ( audio !== $.audio ) return;
+            if ( ! state.isPlaying ) return;
+            showLoading( true );
+            reconnectScheduleIfNeeded( 30000 );
+        } );
+
+        audio.addEventListener( 'ended', function() {
+            if ( audio !== $.audio ) return;
+            if ( reconnecting ) return;
+            if ( reconnectTimer ) return;
+            if ( state.currentStation ) {
+                state.isPlaying = true;
+                scheduleReconnect( 0 );
+            }
+        } );
+
+        audio.addEventListener( 'emptied', function() {
+            if ( audio !== $.audio ) return;
+            if ( reconnecting ) return;
+            if ( state.isPlaying && state.currentStation ) { scheduleReconnect( 1000 ); }
+        } );
+    }
+
+    /* ---- EVENTS ---- */
+    function bindEvents() {
+        if ( $.playBtn )  $.playBtn.addEventListener( 'click', togglePlay );
+        if ( $.prevBtn )  $.prevBtn.addEventListener( 'click', playPrev );
+        if ( $.nextBtn )  $.nextBtn.addEventListener( 'click', playNext );
+        if ( $.shareBtn ) $.shareBtn.addEventListener( 'click', shareStation );
+        /* Detay sayfası ses kontrolleri — delegation ile (AJAX nav sonrası da çalışır) */
+        document.addEventListener( 'click', function( e ) {
+            var btn = e.target.closest( '#station-volume-btn' );
+            if ( btn ) { e.preventDefault(); toggleMute(); }
+        } );
+        document.addEventListener( 'keydown', function( e ) {
+            var btn = e.target.closest( '#station-volume-btn' );
+            if ( btn && ( e.key === 'Enter' || e.key === ' ' ) ) { e.preventDefault(); toggleMute(); }
+        } );
+        document.addEventListener( 'input', function( e ) {
+            if ( e.target && e.target.id === 'station-volume-slider' ) {
+                setVolume( e.target.value );
+            }
+        } );
+
+        bindAudioEvents( $.audio );
+
+        document.addEventListener( 'click', function( e ) {
+            var playBtn = e.target.closest( '.play-btn' );
+            if ( playBtn && playBtn.dataset.stationId ) { e.preventDefault(); e.stopPropagation(); handleStationClick( playBtn ); return; }
+
+            var heroBtn = e.target.closest( '.station-hero-play-btn' );
+            if ( heroBtn ) { e.preventDefault(); e.stopPropagation(); handleStationClick( heroBtn ); return; }
+
+            var popItem = e.target.closest( '.popular-station-item[data-stream-url]' );
+            if ( popItem ) { e.preventDefault(); handleStationClick( popItem ); return; }
+
+            /* station-hero-play-btn (detay sayfası) — data-song-url zaten var */
+
+            /* Kart tiklamasi: play/genre haric -> detay sayfasina git */
+            var card = e.target.closest( '.radio-card' );
+            if ( card ) {
+                if ( e.target.closest( 'button' ) )     return;
+                if ( e.target.closest( '.genre-tag' ) ) return;
+                var permalink = card.dataset.permalink;
+                if ( permalink ) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    /* Querystring olmadan temiz URL kullan (/tr/station/arabesk-fm/) */
+                    var cleanHref = permalink.split( '?' )[0];
+                    document.dispatchEvent( new CustomEvent( 'rt:navigate', { detail: { href: cleanHref } } ) );
+                }
+                return;
+            }
+        } );
+
+        document.addEventListener( 'keydown', function( e ) {
+            if ( e.target.matches( 'input, textarea, select' ) ) return;
+            if ( e.key === ' ' || e.key === 'k' ) { e.preventDefault(); togglePlay(); }
+            if ( e.key === 'ArrowRight' ) { e.preventDefault(); playNext(); }
+            if ( e.key === 'ArrowLeft'  ) { e.preventDefault(); playPrev(); }
+            if ( e.key === 'm'          ) { e.preventDefault(); toggleMute(); }
+        } );
+
+        document.addEventListener( 'rt:navigation-done', function() {
+            bindDom();          /* Detay sayfası volume elemanlarını yeniden bağla */
+            buildPlaylist();
+            updatePageButtons();
+            updateVolumeUI();   /* Slider değerini senkronize et */
+            initDetailSongSync(); /* Detay sayfası şarkı adı senkronizasyonu */
+        } );
+    }
+
+    /* ---- INIT ---- */
+    function init() {
+        bindDom();
+
+        $.audio = document.getElementById( 'radio-audio-element' );
+        if ( ! $.audio ) {
+            $.audio = document.createElement( 'audio' );
+            $.audio.id = 'radio-audio-element';
+            $.audio.preload = 'none';
+            $.audio.style.display = 'none';
+            document.body.appendChild( $.audio );
+        }
+        $.audio.volume = state.volume;
+
+        loadState();
+        bindEvents();
+        buildPlaylist();
+        updatePageButtons();
+        initDetailSongSync(); /* Sayfa direkt açıldığında (yenileme) detay şarkı sync */
+
+        /* -------------------------------------------------------
+         * NOSSL MODU: HTTP sayfasında açıldık, bekleyen istasyon
+         * varsa hemen çal (kullanıcı tıklaması gerektirmez).
+         * ------------------------------------------------------- */
+        if ( window.location.protocol === 'http:' ) {
+            try {
+                var pending = sessionStorage.getItem( 'rt_pending_station' );
+                if ( pending ) {
+                    sessionStorage.removeItem( 'rt_pending_station' );
+                    var pendingStation = JSON.parse( pending );
+                    if ( pendingStation && pendingStation.streamUrl ) {
+                        setTimeout( function() { loadStation( pendingStation ); }, 300 );
+                    }
+                }
+            } catch(e) {}
+        }
+    }
+
+    if ( document.readyState === 'loading' ) {
+        document.addEventListener( 'DOMContentLoaded', init );
+    } else {
+        init();
+    }
+
+    window.RadioThemePlayer = {
+        syncButtons:   updatePageButtons,
+        buildPlaylist: buildPlaylist,
+        getState:      function() { return state; },
+        play:          loadStation,
+        getArtwork:    function( title ) { return title ? ( _artworkCache[ title ] || null ) : ( _artworkCache[ _lastArtworkTitle ] || null ); },
+        getCurrentTitle: function() {
+            var np = document.getElementById( 'player-now-playing' );
+            return np ? ( np.textContent || '' ).replace( /^[♪\s]+/, '' ).trim() : '';
+        },
+    };
+
+} )();

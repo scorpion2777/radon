@@ -1,0 +1,464 @@
+/* ============================================================
+   RADIOTHEME - radio-card.css
+   Radio station card: single row layout with logo, name,
+   city/country, genres, and play button
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   RADIO LIST CONTAINER
+   ------------------------------------------------------------ */
+.radio-list {
+    display:        flex;
+    flex-direction: column;
+    gap:            0;
+}
+
+.radio-list-header {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    margin-bottom:   var(--space-2);
+}
+
+.radio-list-count {
+    font-size:   var(--font-size-sm);
+    color:       var(--color-text-muted);
+    font-weight: var(--font-weight-medium);
+}
+
+.radio-list-count span {
+    font-weight: var(--font-weight-bold);
+    color:       var(--color-text-primary);
+}
+
+/* ------------------------------------------------------------
+   RADIO CARD - Single Row
+   ------------------------------------------------------------ */
+.radio-card {
+    display:         flex;
+    align-items:     center;
+    gap:             var(--space-3);
+    padding:         var(--space-3) var(--space-4);
+    background:      var(--color-bg-secondary);
+    border-bottom:   1px solid var(--color-border-light);
+    cursor:          pointer;
+    transition:      all var(--transition-fast);
+    position:        relative;
+    text-decoration: none;
+    color:           inherit;
+
+    /* Left accent border - hidden by default */
+    border-left:     3px solid transparent;
+}
+
+.radio-card:first-child {
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-top:    1px solid var(--color-border-light);
+}
+
+.radio-card:last-child {
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.radio-card:first-child:last-child {
+    border-radius: var(--radius-lg);
+    border-top:    1px solid var(--color-border-light);
+}
+
+/* Hover state */
+.radio-card:hover {
+    background:  var(--color-bg);
+    border-left-color: var(--color-accent);
+    transform:   translateX(2px);
+}
+
+.radio-card:hover .play-btn {
+    opacity:    1;
+    transform:  scale(1);
+}
+
+/* Active / currently playing state */
+.radio-card.is-playing {
+    background:        var(--color-accent-alpha);
+    border-left-color: var(--color-accent);
+}
+
+.radio-card.is-playing .play-btn {
+    opacity:          1;
+    transform:        scale(1);
+    background-color: var(--color-accent);
+    color:            white;
+}
+
+.radio-card.is-playing .station-name {
+    color: var(--color-accent);
+}
+
+/* ------------------------------------------------------------
+   STATION LOGO (50x50)
+   ------------------------------------------------------------ */
+.station-logo-wrap {
+    flex-shrink: 0;
+    position:    relative;
+}
+
+.station-logo {
+    width:         50px;
+    height:        50px;
+    border-radius: var(--radius-md);
+    object-fit:    cover;
+    background:    var(--color-bg);
+    border:        1px solid var(--color-border-light);
+    display:       block;
+}
+
+/* Fallback logo when no image */
+.station-logo-fallback {
+    width:            50px;
+    height:           50px;
+    border-radius:    var(--radius-md);
+    background:       linear-gradient(135deg, #1a1a1a 0%, #333333 100%);
+    border:           1px solid var(--color-border-light);
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+    flex-shrink:      0;
+    font-family:      var(--font-display);
+    font-size:        var(--font-size-lg);
+    font-weight:      var(--font-weight-extrabold);
+    color:            var(--color-accent);
+    text-transform:   uppercase;
+    letter-spacing:   -0.03em;
+    overflow:         hidden;
+}
+
+/* Live indicator dot on logo */
+.station-live-dot {
+    position:         absolute;
+    bottom:           2px;
+    right:            2px;
+    width:            10px;
+    height:           10px;
+    background-color: var(--color-success);
+    border-radius:    50%;
+    border:           2px solid var(--color-bg-secondary);
+    animation:        pulse-live 2s ease-in-out infinite;
+}
+
+@keyframes pulse-live {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.7; transform: scale(0.85); }
+}
+
+/* ------------------------------------------------------------
+   STATION INFO
+   ------------------------------------------------------------ */
+.station-info {
+    flex:    1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap:     2px;
+}
+
+/* Station name */
+.station-name {
+    font-family:    var(--font-display);
+    font-size:      var(--font-size-sm);
+    font-weight:    var(--font-weight-bold);
+    color:          var(--color-text-primary);
+    letter-spacing: var(--letter-spacing-tight);
+    white-space:    nowrap;
+    overflow:       hidden;
+    text-overflow:  ellipsis;
+    transition:     color var(--transition-fast);
+    line-height:    1.3;
+}
+
+/* City and Country */
+.station-location {
+    display:     flex;
+    align-items: center;
+    gap:         var(--space-1);
+    font-size:   var(--font-size-xs);
+    color:       var(--color-text-muted);
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+    overflow:    hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+}
+
+.station-location .location-separator {
+    color: var(--color-border);
+}
+
+.station-location .country-flag {
+    font-size: 0.85em;
+}
+
+/* Genre tags */
+.station-genres {
+    display:    flex;
+    align-items: center;
+    gap:         var(--space-1);
+    flex-wrap:   nowrap;
+    overflow:    hidden;
+}
+
+.genre-tag {
+    display:        inline-block;
+    padding:        1px var(--space-2);
+    background:     var(--color-bg);
+    border:         1px solid var(--color-border);
+    border-radius:  var(--radius-full);
+    font-size:      10px;
+    font-weight:    var(--font-weight-medium);
+    color:          var(--color-text-muted);
+    white-space:    nowrap;
+    transition:     all var(--transition-fast);
+    text-decoration: none;
+}
+
+.genre-tag:hover {
+    border-color: var(--color-accent);
+    color:        var(--color-accent);
+    background:   var(--color-accent-alpha);
+}
+
+.radio-card.is-playing .genre-tag {
+    border-color: rgba(255, 107, 53, 0.3);
+    color:        var(--color-accent);
+}
+
+/* More genres indicator */
+.genres-more {
+    font-size:   10px;
+    color:       var(--color-text-muted);
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+}
+
+/* ------------------------------------------------------------
+   STATION META (right side)
+   ------------------------------------------------------------ */
+.station-meta {
+    display:        flex;
+    align-items:    center;
+    gap:            var(--space-3);
+    flex-shrink:    0;
+}
+
+/* Bitrate badge */
+.bitrate-badge {
+    font-size:   var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color:       var(--color-text-muted);
+    letter-spacing: var(--letter-spacing-wide);
+    white-space: nowrap;
+}
+
+/* ------------------------------------------------------------
+   PLAY BUTTON
+   ------------------------------------------------------------ */
+.play-btn {
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+    width:            36px;
+    height:           36px;
+    border-radius:    50%;
+    background-color: var(--color-text-primary);
+    color:            var(--color-text-inverse);
+    border:           none;
+    cursor:           pointer;
+    flex-shrink:      0;
+    opacity:          0;
+    transform:        scale(0.85);
+    transition:       all var(--transition-spring);
+    z-index:          var(--z-base);
+}
+
+.play-btn:hover {
+    background-color: var(--color-accent);
+    transform:        scale(1.05) !important;
+    box-shadow:       var(--shadow-accent);
+}
+
+.play-btn svg {
+    width:  16px;
+    height: 16px;
+    fill:   currentColor;
+    flex-shrink: 0;
+}
+
+/* Pause icon state */
+.play-btn.is-paused svg.icon-play   { display: block; }
+.play-btn.is-paused svg.icon-pause  { display: none; }
+.play-btn.is-playing svg.icon-play  { display: none; }
+.play-btn.is-playing svg.icon-pause { display: block; }
+
+/* Always show play button on touch devices */
+@media (hover: none) {
+    .play-btn {
+        opacity:   1;
+        transform: scale(1);
+    }
+}
+
+/* ------------------------------------------------------------
+   EQUALIZER ANIMATION (when playing)
+   ------------------------------------------------------------ */
+.equalizer {
+    display:     none;
+    align-items: flex-end;
+    gap:         2px;
+    height:      16px;
+    width:       20px;
+    flex-shrink: 0;
+}
+
+.radio-card.is-playing .equalizer {
+    display: flex;
+}
+
+.radio-card.is-playing .play-btn {
+    display: none;
+}
+
+.eq-bar {
+    width:            3px;
+    background-color: var(--color-accent);
+    border-radius:    1px;
+    animation:        eq-bounce 1s ease-in-out infinite;
+}
+
+.eq-bar:nth-child(1) { animation-delay: 0s;     animation-duration: 0.9s; }
+.eq-bar:nth-child(2) { animation-delay: 0.15s;  animation-duration: 1.1s; }
+.eq-bar:nth-child(3) { animation-delay: 0.05s;  animation-duration: 0.8s; }
+.eq-bar:nth-child(4) { animation-delay: 0.2s;   animation-duration: 1.2s; }
+
+@keyframes eq-bounce {
+    0%, 100% { height: 4px; }
+    50%       { height: 14px; }
+}
+
+/* Paused equalizer */
+.radio-card.is-paused .eq-bar {
+    animation-play-state: paused;
+    height:               6px;
+}
+
+/* ------------------------------------------------------------
+   SKELETON LOADING STATE
+   ------------------------------------------------------------ */
+.radio-card-skeleton {
+    display:     flex;
+    align-items: center;
+    gap:         var(--space-3);
+    padding:     var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border-light);
+    pointer-events: none;
+}
+
+.skeleton {
+    background: linear-gradient(
+        90deg,
+        var(--color-border-light) 25%,
+        var(--color-border) 50%,
+        var(--color-border-light) 75%
+    );
+    background-size: 200% 100%;
+    animation:       skeleton-shimmer 1.5s infinite;
+    border-radius:   var(--radius-sm);
+}
+
+@keyframes skeleton-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.skeleton-logo {
+    width:         50px;
+    height:        50px;
+    border-radius: var(--radius-md);
+    flex-shrink:   0;
+}
+
+.skeleton-content {
+    flex:    1;
+    display: flex;
+    flex-direction: column;
+    gap:     var(--space-2);
+}
+
+.skeleton-title {
+    height: 14px;
+    width:  60%;
+}
+
+.skeleton-subtitle {
+    height: 11px;
+    width:  40%;
+}
+
+.skeleton-tags {
+    height: 10px;
+    width:  50%;
+}
+
+/* ------------------------------------------------------------
+   RESPONSIVE
+   ------------------------------------------------------------ */
+@media (max-width: 480px) {
+    .radio-card {
+        padding:  var(--space-3);
+        gap:      var(--space-2);
+    }
+
+    .bitrate-badge {
+        display: none;
+    }
+
+    .station-genres .genre-tag:nth-child(n+2) {
+        display: none;
+    }
+}
+
+/* Full-card detail link overlay */
+.radio-card-link {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+}
+.radio-card { position: relative; }
+.radio-card .station-logo-wrap,
+.radio-card .station-info,
+.radio-card .station-meta,
+.radio-card .equalizer {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+}
+.radio-card .station-genres a,
+.radio-card .play-btn {
+    position: relative;
+    z-index: 2;
+}
+
+/* station-name link */
+a.station-name {
+    color: inherit;
+    text-decoration: none;
+    display: block;
+}
+a.station-name:hover {
+    text-decoration: underline;
+    color: var(--color-primary, #6c63ff);
+}
+/* station-logo-wrap as link */
+a.station-logo-wrap {
+    text-decoration: none;
+    flex-shrink: 0;
+}

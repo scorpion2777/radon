@@ -1,0 +1,545 @@
+/* ============================================================
+   RADIOTHEME - player.css
+   Fixed bottom audio player bar
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   PLAYER BAR - Fixed Bottom
+   ------------------------------------------------------------ */
+.radio-player-bar {
+    position:         fixed;
+    bottom:           0;
+    left:             0;
+    right:            0;
+    height:           var(--player-height);
+    background-color: var(--color-player-bg);
+    border-top:       1px solid var(--color-player-border);
+    z-index:          var(--z-player);
+    display:          flex;
+    align-items:      center;
+    padding:          0 var(--space-5);
+    gap:              var(--space-4);
+    box-shadow:       0 -4px 24px rgba(0,0,0,0.25);
+    transform:        translateY(100%);
+    transition:       transform var(--transition-slow);
+}
+
+/* Player visible when station is active */
+.radio-player-bar.is-active {
+    transform: translateY(0);
+}
+
+/* ------------------------------------------------------------
+   PLAYER: STATION INFO (left section)
+   ------------------------------------------------------------ */
+.player-station-info {
+    display:     flex;
+    align-items: center;
+    gap:         var(--space-3);
+    flex:        1 1 0;      /* tüm boş alanı doldur */
+    min-width:   0;           /* text-overflow için zorunlu */
+    overflow:    hidden;
+}
+
+.player-station-logo-wrap {
+    width:       48px;
+    height:      48px;
+    flex-shrink: 0;
+    position:    relative;
+}
+
+.player-station-logo {
+    width:         48px;
+    height:        48px;
+    border-radius: var(--radius-md);
+    object-fit:    cover;
+    flex-shrink:   0;
+    display:       block;
+    background:    var(--color-player-border);
+}
+
+.player-station-logo-fallback {
+    width:            48px;
+    height:           48px;
+    border-radius:    var(--radius-md);
+    background:       linear-gradient(135deg, #2a2a2a 0%, #444444 100%);
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+    flex-shrink:      0;
+    font-family:      var(--font-display);
+    font-size:        var(--font-size-lg);
+    font-weight:      var(--font-weight-extrabold);
+    color:            var(--color-accent);
+    text-transform:   uppercase;
+}
+
+.player-station-text {
+    flex:      1 1 0;
+    min-width: 0;
+    overflow:  hidden;
+}
+
+.player-station-name {
+    font-family:    var(--font-display);
+    font-size:      var(--font-size-sm);
+    font-weight:    var(--font-weight-bold);
+    color:          var(--color-player-text);
+    letter-spacing: var(--letter-spacing-tight);
+    white-space:    nowrap;
+    overflow:       hidden;
+    text-overflow:  ellipsis;
+}
+
+.player-station-meta {
+    font-size:   var(--font-size-xs);
+    color:       rgba(255, 255, 255, 0.5);
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+    overflow:    hidden;
+    text-overflow: ellipsis;
+    margin-top:  2px;
+}
+
+/* Live badge */
+.player-live-badge {
+    display: none; /* kaldırıldı */
+}
+
+.player-live-badge::before {
+    content:          '';
+    display:          block;
+    width:            5px;
+    height:           5px;
+    background-color: white;
+    border-radius:    50%;
+    animation:        pulse-live 2s ease-in-out infinite;
+}
+
+/* ------------------------------------------------------------
+   PLAYER: CONTROLS (center section)
+   ------------------------------------------------------------ */
+.player-controls {
+    display:         flex;
+    align-items:     center;
+    justify-content: flex-end;
+    gap:             var(--space-3);
+    flex:            0 0 auto;   /* içeriği kadar yer kaplasın */
+    margin-left:     auto;
+}
+
+/* Main play/pause button */
+.player-btn-play {
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+    width:            48px;
+    height:           48px;
+    border-radius:    50%;
+    background-color: var(--color-accent);
+    color:            white;
+    border:           none;
+    cursor:           pointer;
+    transition:       all var(--transition-spring);
+    flex-shrink:      0;
+}
+
+.player-btn-play:hover {
+    background-color: var(--color-accent-light);
+    transform:        scale(1.08);
+    box-shadow:       var(--shadow-accent);
+}
+
+.player-btn-play:active {
+    transform: scale(0.95);
+}
+
+.player-btn-play svg {
+    width:  20px;
+    height: 20px;
+    fill:   currentColor;
+}
+
+/* Secondary control buttons */
+.player-btn {
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+    width:            36px;
+    height:           36px;
+    border-radius:    50%;
+    background:       none;
+    color:            rgba(255, 255, 255, 0.6);
+    border:           none;
+    cursor:           pointer;
+    transition:       all var(--transition-fast);
+}
+
+.player-btn:hover {
+    color:            white;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.player-btn svg {
+    width:  18px;
+    height: 18px;
+    fill:   none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* ------------------------------------------------------------
+   PLAYER: PROGRESS (stream indicator)
+   ------------------------------------------------------------ */
+.player-progress-wrap {
+    display:         flex;
+    align-items:     center;
+    gap:             var(--space-3);
+    flex:            0 0 200px;
+}
+
+/* For live streams: animated bar */
+.player-live-indicator {
+    flex:         1;
+    height:       3px;
+    background:   rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-full);
+    overflow:      hidden;
+    position:      relative;
+}
+
+.player-live-indicator::after {
+    content:          '';
+    position:         absolute;
+    left:             -50%;
+    top:              0;
+    width:            50%;
+    height:           100%;
+    background:       linear-gradient(
+        90deg,
+        transparent 0%,
+        var(--color-accent) 50%,
+        transparent 100%
+    );
+    animation:        stream-pulse 2s linear infinite;
+}
+
+@keyframes stream-pulse {
+    0%   { left: -50%; }
+    100% { left: 150%; }
+}
+
+/* Buffering state */
+.player-buffering .player-live-indicator::after {
+    animation-duration: 0.8s;
+}
+
+/* ------------------------------------------------------------
+   PLAYER: VOLUME (right section)
+   ------------------------------------------------------------ */
+.player-volume {
+    display:     flex;
+    align-items: center;
+    gap:         var(--space-2);
+    flex:        0 0 160px;
+    justify-content: flex-end;
+}
+
+.player-volume-btn {
+    display:     flex;
+    align-items: center;
+    justify-content: center;
+    width:       32px;
+    height:      32px;
+    background:  none;
+    border:      none;
+    color:       rgba(255, 255, 255, 0.6);
+    cursor:      pointer;
+    transition:  color var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.player-volume-btn:hover {
+    color: white;
+}
+
+.player-volume-btn svg {
+    width:  18px;
+    height: 18px;
+    fill:   currentColor;
+}
+
+/* Volume slider */
+.player-volume-slider {
+    -webkit-appearance: none;
+    appearance:         none;
+    width:              100px;
+    height:             3px;
+    background:         rgba(255, 255, 255, 0.2);
+    border-radius:      var(--radius-full);
+    outline:            none;
+    cursor:             pointer;
+}
+
+.player-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance:         none;
+    width:              14px;
+    height:             14px;
+    border-radius:      50%;
+    background:         white;
+    cursor:             pointer;
+    transition:         transform var(--transition-fast);
+}
+
+.player-volume-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    background: var(--color-accent);
+}
+
+.player-volume-slider::-moz-range-thumb {
+    width:        14px;
+    height:       14px;
+    border-radius: 50%;
+    background:   white;
+    cursor:       pointer;
+    border:       none;
+}
+
+/* ------------------------------------------------------------
+   PLAYER: EXTRA ACTIONS (right end)
+   ------------------------------------------------------------ */
+.player-actions {
+    display:     flex;
+    align-items: center;
+    gap:         var(--space-1);
+    flex-shrink: 0;
+}
+
+/* Share button */
+.player-btn-share {
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+    width:            32px;
+    height:           32px;
+    background:       none;
+    border:           none;
+    color:            rgba(255, 255, 255, 0.5);
+    cursor:           pointer;
+    border-radius:    var(--radius-md);
+    transition:       all var(--transition-fast);
+}
+
+.player-btn-share:hover {
+    color:            white;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.player-btn-share svg {
+    width:  16px;
+    height: 16px;
+    fill:   none;
+    stroke: currentColor;
+    stroke-width: 2;
+}
+
+/* Close/dismiss player */
+.player-btn-close {
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+    width:            28px;
+    height:           28px;
+    background:       rgba(255, 255, 255, 0.08);
+    border:           none;
+    border-radius:    var(--radius-md);
+    color:            rgba(255, 255, 255, 0.5);
+    cursor:           pointer;
+    transition:       all var(--transition-fast);
+}
+
+.player-btn-close:hover {
+    color:      white;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.player-btn-close svg {
+    width:  14px;
+    height: 14px;
+    fill:   none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+}
+
+/* ------------------------------------------------------------
+   PLAYER: ERROR STATE
+   ------------------------------------------------------------ */
+.player-error-msg {
+    font-size:   var(--font-size-xs);
+    color:       var(--color-error);
+    font-weight: var(--font-weight-medium);
+    flex-shrink: 0;
+}
+
+/* ------------------------------------------------------------
+   PLAYER: LOADING STATE
+   ------------------------------------------------------------ */
+.player-loading .player-btn-play {
+    pointer-events: none;
+}
+
+.player-loading .player-btn-play svg {
+    animation: spin 0.8s linear infinite;
+}
+
+/* ------------------------------------------------------------
+   RESPONSIVE
+   ------------------------------------------------------------ */
+@media (max-width: 768px) {
+    .radio-player-bar {
+        padding:  0 var(--space-4);
+        gap:      var(--space-3);
+    }
+
+    .player-station-info {
+        flex:      1 1 0;
+        max-width: none;
+    }
+
+    .player-progress-wrap {
+        flex: 0 0 80px;
+    }
+
+    .player-volume {
+        display: none;
+    }
+
+    .player-actions {
+        gap: var(--space-1);
+    }
+}
+
+@media (max-width: 480px) {
+    .radio-player-bar {
+        padding: 0 var(--space-3);
+        gap:     var(--space-2);
+    }
+
+    .player-station-info {
+        flex:      1 1 0;
+        max-width: none;
+    }
+
+    .player-progress-wrap {
+        display: none;
+    }
+
+    .player-btn-share {
+        display: none;
+    }
+
+    .player-station-meta {
+        display: none;
+    }
+}
+
+/* ------------------------------------------------------------
+   LIVE INDICATOR ANIMATION
+   ------------------------------------------------------------ */
+.player-live-indicator {
+    width:            12px;
+    height:           12px;
+    background-color: transparent;
+    border-radius:    50%;
+    position:         relative;
+}
+
+.player-live-indicator.is-live {
+    background-color: var(--color-error);
+}
+
+.player-live-indicator.is-live::before {
+    content:          '';
+    position:         absolute;
+    top:              50%;
+    left:             50%;
+    transform:        translate(-50%, -50%);
+    width:            100%;
+    height:           100%;
+    background-color: var(--color-error);
+    border-radius:    50%;
+    animation:        live-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+    0% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity:   0.8;
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(2);
+        opacity:   0;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity:   0.8;
+    }
+}
+
+/* Player loading state */
+#player-icon-loading {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Error message styling */
+.player-error-msg {
+    position:         fixed;
+    top:              100px;
+    right:            var(--space-6);
+    background-color: var(--color-error);
+    color:            white;
+    padding:          var(--space-3) var(--space-5);
+    border-radius:    var(--radius-md);
+    box-shadow:       var(--shadow-lg);
+    z-index:          var(--z-toast);
+    animation:        slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(400px);
+        opacity:   0;
+    }
+    to {
+        transform: translateX(0);
+        opacity:   1;
+    }
+}
+
+/* ============================================================
+   NOW PLAYING — Şarkı adı (radyo adının altında)
+   ============================================================ */
+.player-now-playing {
+    font-size:     11px;
+    font-weight:   500;
+    color:         var(--color-accent, #6c63ff);
+    white-space:   nowrap;
+    overflow:      hidden;
+    text-overflow: ellipsis;
+    margin-top:    3px;
+    max-width:     100%;
+    min-height:    14px;        /* şarkı yokken de radyo adı aşağı kaymasın */
+    transition:    opacity 0.3s ease;
+}
+
+.player-now-playing:empty {
+    min-height: 0;
+}

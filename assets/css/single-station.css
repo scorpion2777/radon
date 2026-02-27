@@ -1,0 +1,450 @@
+/* ============================================================
+   RADIOTHEME — single-station.css  v2
+   Yeni düzen: Logo | Başlık+Play / Şarkı / Etiketler / Açıklama / Alt grid / Adres
+   ============================================================ */
+
+/* ── Sayfa Layout ── */
+.station-detail-page .content-area {
+    display:               grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    grid-template-areas:   "radio-list sidebar-left sidebar-right";
+    gap:                   var(--space-4);
+    align-items:           start;
+    padding:               0 var(--space-4);
+}
+.station-detail { min-width: 0; }
+
+/* Breadcrumb */
+.breadcrumb-nav {
+    font-size:     var(--font-size-sm, 0.85rem);
+    color:         var(--color-text-muted);
+    margin-bottom: var(--space-4, 1rem);
+}
+.breadcrumb-list {
+    display:     flex;
+    align-items: center;
+    flex-wrap:   wrap;
+    gap:         0.25rem;
+    list-style:  none;
+    margin:      0;
+    padding:     0;
+}
+.breadcrumb-item {
+    display:     flex;
+    align-items: center;
+    gap:         0.25rem;
+}
+/* Ayırıcı › her item'dan sonra */
+.breadcrumb-item:not(:last-child)::after {
+    content:    '›';
+    color:      var(--color-text-muted);
+    opacity:    0.5;
+    font-size:  0.9em;
+    margin-left: 0.15rem;
+}
+.breadcrumb-link {
+    color:           var(--color-accent, #ff6b35);
+    text-decoration: none;
+    font-weight:     500;
+    transition:      opacity 0.15s;
+}
+.breadcrumb-link:hover {
+    opacity:         0.75;
+    text-decoration: underline;
+}
+.breadcrumb-current {
+    color:       var(--color-text-primary);
+    font-weight: 500;
+    /* Uzun isimleri kır */
+    max-width:   260px;
+    white-space: nowrap;
+    overflow:    hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Ana Kart ── */
+.sd-card {
+    background:    var(--color-surface, #fff);
+    border:        1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    padding:       var(--space-8);
+    margin-bottom: var(--space-6);
+}
+
+/* ─────────────────────────────────────────
+   HERO: Logo (sol) + Bilgi (sağ) yan yana
+   ───────────────────────────────────────── */
+.sd-hero {
+    display:     flex;
+    gap:         var(--space-6);
+    align-items: flex-start;
+}
+
+/* ── Logo ── */
+.sd-logo-wrap {
+    flex-shrink: 0;
+    width:  120px;
+    height: 120px;
+    position: relative;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+.sd-logo-img {
+    width:         120px;
+    height:        120px;
+    border-radius: var(--radius-lg);
+    object-fit:    cover;
+    display:       block;
+    border:        1px solid var(--color-border);
+    transition:    opacity 0.3s ease;
+}
+.sd-logo-fallback {
+    width:           120px;
+    height:          120px;
+    border-radius:   var(--radius-lg);
+    background:      linear-gradient(135deg, var(--color-accent) 0%, #ff8c5e 100%);
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    font-family:     var(--font-display);
+    font-size:       3rem;
+    font-weight:     var(--font-weight-extrabold);
+    color:           #fff;
+}
+
+/* ── Sağ bilgi bölümü ── */
+.sd-info {
+    flex:      1;
+    min-width: 0;
+}
+
+/* ─────────────────────────────────────────
+   SATIR 1: Radyo Adı + Play Butonu
+   ───────────────────────────────────────── */
+.sd-title-row {
+    display:       flex;
+    align-items:   center;
+    gap:           var(--space-3);
+    margin-bottom: var(--space-2);
+}
+.sd-title {
+    font-family: var(--font-display);
+    font-size:   var(--font-size-2xl);
+    font-weight: var(--font-weight-extrabold);
+    color:       var(--color-text-primary);
+    line-height: 1.15;
+    flex:        1;
+    margin:      0;
+}
+
+/* Play butonu — turuncu yuvarlak
+   CRITICAL: radio-card.css .play-btn kuralı opacity:0 ve scale(0.85) yapıyor.
+   Detay sayfasında her zaman görünür olmalı — !important ile override. */
+.sd-play-btn.play-btn,
+.sd-play-btn {
+    flex-shrink:     0 !important;
+    width:           52px !important;
+    height:          52px !important;
+    border-radius:   50% !important;
+    background:      var(--color-accent) !important;
+    color:           #fff !important;
+    border:          none !important;
+    cursor:          pointer !important;
+    display:         flex !important;
+    align-items:     center !important;
+    justify-content: center !important;
+    opacity:         1 !important;
+    transform:       scale(1) !important;
+    transition:      background var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast) !important;
+    box-shadow:      0 2px 12px rgba(255,107,53,0.35) !important;
+}
+.sd-play-btn.play-btn:hover,
+.sd-play-btn:hover {
+    background: var(--color-accent-dark, #e05a2a) !important;
+    transform:  scale(1.07) !important;
+    box-shadow: 0 4px 18px rgba(255,107,53,0.5) !important;
+}
+.sd-play-btn.play-btn.is-playing,
+.sd-play-btn.is-playing {
+    background: var(--color-accent-dark, #e05a2a) !important;
+    box-shadow: 0 2px 12px rgba(255,107,53,0.4) !important;
+}
+.sd-play-btn svg {
+    width:  22px !important;
+    height: 22px !important;
+}
+
+/* ─────────────────────────────────────────
+   SATIR 2: Şarkı Adı (kayan yazı)
+   ───────────────────────────────────────── */
+.sd-song-row {
+    display:       flex;
+    align-items:   center;
+    gap:           var(--space-2);
+    margin-bottom: var(--space-3);
+    min-height:    1.5rem;
+}
+.sd-song-note {
+    font-size:  var(--font-size-sm);
+    color:      var(--color-accent);
+    flex-shrink: 0;
+    opacity:    0.7;
+}
+.sd-song-marquee-wrap {
+    flex:        1;
+    min-width:   0;
+    overflow:    hidden;
+    position:    relative;
+}
+.sd-song-text {
+    display:     block;
+    font-size:   var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color:       var(--color-text-muted);
+    white-space: nowrap;
+    transition:  color var(--transition-fast);
+}
+.sd-song-row.has-song .sd-song-text {
+    color: var(--color-text-secondary);
+}
+/* Kayan animasyon — sadece metin taşıyorsa JS ekler */
+@keyframes sd-marquee {
+    0%   { transform: translateX(0); }
+    15%  { transform: translateX(0); }
+    85%  { transform: translateX(var(--sd-marquee-offset, -60%)); }
+    100% { transform: translateX(var(--sd-marquee-offset, -60%)); }
+}
+.sd-song-text.is-marquee {
+    animation: sd-marquee 12s linear infinite alternate;
+}
+
+/* ─────────────────────────────────────────
+   SATIR 3: Meta etiketleri
+   ───────────────────────────────────────── */
+.sd-meta-tags {
+    display:       flex;
+    flex-wrap:     wrap;
+    gap:           var(--space-2);
+    margin-bottom: var(--space-4);
+    align-items:   center;
+}
+.sd-tag {
+    display:         inline-flex;
+    align-items:     center;
+    gap:             4px;
+    padding:         3px 10px;
+    border-radius:   var(--radius-full);
+    font-size:       var(--font-size-xs);
+    font-weight:     var(--font-weight-medium);
+    text-decoration: none;
+    transition:      all var(--transition-fast);
+    white-space:     nowrap;
+}
+/* Genre */
+.sd-tag--genre {
+    background: var(--color-accent-alpha, rgba(255,107,53,0.1));
+    color:      var(--color-accent);
+    border:     1px solid rgba(255,107,53,0.2);
+}
+.sd-tag--genre:hover {
+    background:   var(--color-accent);
+    color:        #fff;
+    border-color: var(--color-accent);
+}
+/* Ülke */
+.sd-tag--country {
+    background: rgba(59,130,246,0.08);
+    color:      #3b82f6;
+    border:     1px solid rgba(59,130,246,0.2);
+}
+.sd-tag--country:hover {
+    background:   #3b82f6;
+    color:        #fff;
+    border-color: #3b82f6;
+}
+/* Şehir */
+.sd-tag--city {
+    background: rgba(16,185,129,0.08);
+    color:      #10b981;
+    border:     1px solid rgba(16,185,129,0.2);
+}
+.sd-tag--city:hover {
+    background:   #10b981;
+    color:        #fff;
+    border-color: #10b981;
+}
+/* kbps / codec */
+.sd-tag--meta {
+    background: rgba(0,0,0,0.04);
+    color:      var(--color-text-muted);
+    border:     1px solid var(--color-border);
+}
+/* Dil */
+.sd-tag--lang {
+    background: rgba(139,92,246,0.08);
+    color:      #8b5cf6;
+    border:     1px solid rgba(139,92,246,0.2);
+}
+/* Bayrak */
+.sd-flag {
+    display:       inline-block;
+    border-radius: 2px;
+    vertical-align: middle;
+}
+
+/* ─────────────────────────────────────────
+   SATIR 4: Açıklama
+   ───────────────────────────────────────── */
+.sd-description {
+    font-size:     var(--font-size-sm);
+    color:         var(--color-text-secondary);
+    line-height:   var(--line-height-relaxed);
+    margin-bottom: var(--space-5);
+    padding-bottom: var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+}
+.sd-description p           { margin-bottom: var(--space-2); }
+.sd-description p:last-child { margin-bottom: 0; }
+
+/* ─────────────────────────────────────────
+   SATIR 5: Alt Grid
+   Sol = Paylaşım butonları
+   Sağ = Ek özel alanlar
+   ───────────────────────────────────────── */
+.sd-bottom-grid {
+    display:               grid;
+    grid-template-columns: 1fr 1fr;
+    gap:                   var(--space-6);
+    margin-bottom:         var(--space-5);
+}
+
+/* Kolon başlıkları */
+.sd-col-label {
+    font-size:     var(--font-size-xs);
+    font-weight:   var(--font-weight-semibold);
+    color:         var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: var(--space-3);
+}
+
+/* ─── Paylaşım butonları ─── */
+.sd-share-btns {
+    display:        flex;
+    flex-direction: column;
+    gap:            var(--space-2);
+}
+.sd-share-btn {
+    display:         inline-flex;
+    align-items:     center;
+    gap:             var(--space-2);
+    padding:         7px 14px 7px 10px;
+    border-radius:   var(--radius-md);
+    font-size:       var(--font-size-sm);
+    font-weight:     var(--font-weight-medium);
+    color:           #fff;
+    text-decoration: none;
+    transition:      opacity var(--transition-fast), transform var(--transition-fast);
+    white-space:     nowrap;
+    overflow:        hidden;
+    text-overflow:   ellipsis;
+}
+.sd-share-btn:hover       { opacity: 0.88; transform: translateX(3px); }
+.sd-share-btn svg         { width: 18px; height: 18px; flex-shrink: 0; }
+.sd-share-btn span        { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.sd-share-btn--fb     { background: #1877f2; }
+.sd-share-btn--tw     { background: #000; }
+.sd-share-btn--wa     { background: #25d366; }
+.sd-share-btn--email  { background: var(--color-accent, #ff6b35); }
+.sd-share-btn--vi     { background: #7360f2; }
+.sd-share-btn--ig     { background: linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); }
+.sd-share-btn--tt     { background: #010101; }
+.sd-share-btn--yt     { background: #ff0000; }
+.sd-share-btn--web    { background: #475569; }
+.sd-share-btn--phone  { background: #0ea5e9; }
+
+/* ─── Ek alanlar listesi ─── */
+.sd-extra-list {
+    display:               grid;
+    grid-template-columns: auto 1fr;
+    gap:                   var(--space-1) var(--space-3);
+    margin:                0;
+}
+.sd-extra-list dt {
+    font-size:   var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color:       var(--color-text-muted);
+    align-self:  baseline;
+    white-space: nowrap;
+}
+.sd-extra-list dd {
+    font-size: var(--font-size-sm);
+    color:     var(--color-text-secondary);
+    margin:    0;
+}
+
+/* ─────────────────────────────────────────
+   ADRES — en altta
+   ───────────────────────────────────────── */
+.sd-address {
+    display:       flex;
+    align-items:   flex-start;
+    gap:           var(--space-2);
+    font-size:     var(--font-size-sm);
+    color:         var(--color-text-muted);
+    padding-top:   var(--space-4);
+    border-top:    1px solid var(--color-border);
+}
+.sd-address svg {
+    width:       18px;
+    height:      18px;
+    flex-shrink: 0;
+    margin-top:  1px;
+    color:       var(--color-accent);
+}
+
+/* ── Benzer İstasyonlar ── */
+.related-stations          { margin-bottom: var(--space-6); }
+.related-stations .section-title {
+    font-size:     var(--font-size-xl);
+    margin-bottom: var(--space-4);
+    color:         var(--color-text-primary);
+}
+
+/* ── Responsive ── */
+@media ( max-width: 1024px ) {
+    .station-detail-page .content-area {
+        grid-template-columns: 1fr var(--sidebar-width);
+        grid-template-areas: "radio-list sidebar-left";
+    }
+}
+
+@media ( max-width: 768px ) {
+    .station-detail-page .content-area {
+        grid-template-columns: 1fr;
+        padding: 0 var(--space-4);
+    }
+    .sd-card  { padding: var(--space-5); }
+    .sd-hero  { flex-direction: column; align-items: center; }
+    .sd-info  { width: 100%; }
+    .sd-title-row {
+        flex-direction: row;
+        justify-content: space-between;
+    }
+    .sd-meta-tags  { flex-wrap: wrap; }
+    .sd-bottom-grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-5);
+    }
+}
+
+@media ( max-width: 480px ) {
+    .sd-logo-wrap,
+    .sd-logo-img,
+    .sd-logo-fallback { width: 90px; height: 90px; }
+    .sd-logo-fallback { font-size: 2.2rem; }
+    .sd-title { font-size: var(--font-size-xl); }
+    .sd-play-btn { width: 44px; height: 44px; }
+    .sd-play-btn svg { width: 18px; height: 18px; }
+}

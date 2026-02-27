@@ -1,0 +1,263 @@
+<?php
+/**
+ * RadioTheme — single-radio-station.php
+ * Single radio station detail page
+ */
+
+get_header();
+
+while ( have_posts() ) :
+    the_post();
+
+    $main_station_id = get_the_ID();
+    $stream_url   = radiotheme_get_field( 'stream_url',        $main_station_id );
+    $backup_url   = radiotheme_get_field( 'stream_url_backup', $main_station_id );
+    $logo_url     = radiotheme_get_field( 'station_logo_url',  $main_station_id );
+    $website      = radiotheme_get_field( 'station_website',   $main_station_id );
+    $bitrate      = radiotheme_get_field( 'stream_bitrate',    $main_station_id );
+    $codec        = radiotheme_get_field( 'stream_codec',      $main_station_id );
+    $country_code = radiotheme_get_field( 'country_code',      $main_station_id );
+
+    $station_address   = radiotheme_get_field( 'station_address',   $main_station_id );
+    $station_phone     = radiotheme_get_field( 'station_phone',     $main_station_id );
+    $station_email     = radiotheme_get_field( 'station_email',     $main_station_id );
+    $station_viber     = radiotheme_get_field( 'station_viber',     $main_station_id );
+    $station_whatsapp  = radiotheme_get_field( 'station_whatsapp',  $main_station_id );
+    $station_facebook  = radiotheme_get_field( 'station_facebook',  $main_station_id );
+    $station_twitter   = radiotheme_get_field( 'station_twitter',   $main_station_id );
+    $station_instagram = radiotheme_get_field( 'station_instagram', $main_station_id );
+    $station_tiktok    = radiotheme_get_field( 'station_tiktok',    $main_station_id );
+    $station_youtube   = radiotheme_get_field( 'station_youtube',   $main_station_id );
+
+    $logo_src     = get_the_post_thumbnail_url( $main_station_id, 'large' ) ?: $logo_url;
+    $genres       = get_the_terms( $main_station_id, 'radio-genre' );
+    $countries    = get_the_terms( $main_station_id, 'radio-country' );
+    $cities       = get_the_terms( $main_station_id, 'radio-city' );
+    $languages    = get_the_terms( $main_station_id, 'radio-language' );
+
+    $country_name = ( $countries && ! is_wp_error( $countries ) ) ? $countries[0]->name : '';
+    $city_name    = ( $cities    && ! is_wp_error( $cities ) )    ? $cities[0]->name    : '';
+    $initial      = strtoupper( mb_substr( get_the_title(), 0, 1, 'UTF-8' ) );
+
+    $has_social   = $station_facebook || $station_twitter || $station_instagram || $station_tiktok || $station_youtube || $station_whatsapp || $station_viber;
+?>
+
+<main class="site-main station-detail-page" id="main-content">
+    <div class="content-area">
+
+        <article class="radio-list-column station-detail" itemscope itemtype="https://schema.org/RadioBroadcastService">
+
+            <?php if ( function_exists( 'yoast_breadcrumb' ) ) {
+                yoast_breadcrumb( '<nav class="breadcrumb-nav" aria-label="Breadcrumb">', '</nav>' );
+            } ?>
+
+            <!-- ANA KART -->
+            <div class="sd-card">
+                <div class="sd-hero">
+
+                    <!-- Logo -->
+                    <div class="sd-logo-wrap">
+                        <?php if ( $logo_src ) : ?>
+                            <img src="<?php echo esc_url( $logo_src ); ?>" alt="<?php echo esc_attr( get_the_title() ); ?>" class="sd-logo-img" itemprop="logo" loading="eager">
+                        <?php else : ?>
+                            <div class="sd-logo-fallback" aria-hidden="true"><?php echo esc_html( $initial ); ?></div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Sağ bilgi -->
+                    <div class="sd-info">
+
+                        <!-- Başlık + Play -->
+                        <div class="sd-title-row">
+                            <h1 class="sd-title" itemprop="name"><?php the_title(); ?></h1>
+                            <?php if ( $stream_url ) : ?>
+                            <button
+                                class="sd-play-btn is-paused"
+                                data-station-id="<?php echo esc_attr( $main_station_id ); ?>"
+                                data-stream-url="<?php echo esc_attr( $stream_url ); ?>"
+                                data-backup-url="<?php echo esc_attr( $backup_url ?: '' ); ?>"
+                                data-station-name="<?php echo esc_attr( get_the_title() ); ?>"
+                                data-logo="<?php echo esc_url( $logo_src ?: '' ); ?>"
+                                data-country="<?php echo esc_attr( $country_name ); ?>"
+                                data-song-url="<?php echo esc_attr( radiotheme_get_field( 'song_title_url', $main_station_id ) ?: $stream_url ); ?>"
+                                aria-label="<?php printf( esc_attr__( 'Play %s', 'radiotheme' ), esc_attr( get_the_title() ) ); ?>"
+                            >
+                                <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
+                                <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true" style="display:none"><rect x="6" y="4" width="4" height="16" fill="currentColor"/><rect x="14" y="4" width="4" height="16" fill="currentColor"/></svg>
+                            </button>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Konum -->
+                        <?php if ( $city_name || $country_name ) : ?>
+                        <p class="sd-location">
+                            <?php if ( $city_name ) echo esc_html( $city_name ); ?>
+                            <?php if ( $city_name && $country_name ) echo ' &middot; '; ?>
+                            <?php if ( $country_name ) : $cl = $countries ? get_term_link( $countries[0] ) : ''; ?>
+                                <?php if ( ! is_wp_error( $cl ) && $cl ) : ?>
+                                    <a href="<?php echo esc_url($cl); ?>" itemprop="areaServed"><?php echo esc_html( $country_name ); ?></a>
+                                <?php else : ?>
+                                    <span itemprop="areaServed"><?php echo esc_html( $country_name ); ?></span>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                        </p>
+                        <?php endif; ?>
+
+                        <!-- Genre + Bitrate etiketleri -->
+                        <div class="sd-genres">
+                            <?php if ( $genres && ! is_wp_error( $genres ) ) :
+                                foreach ( $genres as $g ) :
+                                    $gl = get_term_link( $g );
+                                    if ( is_wp_error( $gl ) ) continue;
+                            ?>
+                                <a href="<?php echo esc_url( $gl ); ?>" class="sd-genre-tag"><?php echo esc_html( $g->name ); ?></a>
+                            <?php endforeach; endif; ?>
+                            <?php if ( $bitrate ) : ?>
+                                <span class="sd-genre-tag sd-genre-tag--meta"><?php echo esc_html( $bitrate ); ?> kbps<?php if ( $codec ) echo ' &middot; ' . esc_html( $codec ); ?></span>
+                            <?php endif; ?>
+                            <?php if ( $languages && ! is_wp_error( $languages ) ) :
+                                foreach ( $languages as $lang ) : ?>
+                                <span class="sd-lang-badge"><?php echo esc_html( $lang->name ); ?></span>
+                            <?php endforeach; endif; ?>
+                        </div>
+
+                        <!-- Açıklama -->
+                        <?php if ( has_excerpt() || get_the_content() ) : ?>
+                        <div class="sd-excerpt" itemprop="description">
+                            <?php if ( has_excerpt() ) : the_excerpt(); else : the_content(); endif; ?>
+                        </div>
+                        <?php endif; ?>
+
+                        <!-- Alt bar: Sosyal ikonlar | Link butonlar -->
+                        <div class="sd-bottom-bar">
+
+                            <!-- Sosyal medya ikon butonları (Facebook, Twitter, Instagram, WhatsApp, Viber, TikTok, YouTube) -->
+                            <?php if ( $has_social ) : ?>
+                            <div class="sd-social-icons">
+
+                                <?php if ( $station_facebook ) : $u = radiotheme_social_url( $station_facebook, 'https://facebook.com/' ); ?>
+                                <a href="<?php echo esc_url($u); ?>" target="_blank" rel="noopener noreferrer" class="sd-icon-btn sd-icon-btn--fb" aria-label="Facebook">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.04V9.41c0-3.02 1.8-4.7 4.54-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.5c-1.5 0-1.96.93-1.96 1.89v2.26h3.32l-.53 3.5h-2.8V24C19.62 23.1 24 18.1 24 12.07z"/></svg>
+                                </a>
+                                <?php endif; ?>
+
+                                <?php if ( $station_twitter ) : $u = radiotheme_social_url( $station_twitter, 'https://x.com/' ); ?>
+                                <a href="<?php echo esc_url($u); ?>" target="_blank" rel="noopener noreferrer" class="sd-icon-btn sd-icon-btn--tw" aria-label="Twitter/X">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                                </a>
+                                <?php endif; ?>
+
+                                <?php if ( $station_instagram ) : $u = radiotheme_social_url( $station_instagram, 'https://instagram.com/' ); ?>
+                                <a href="<?php echo esc_url($u); ?>" target="_blank" rel="noopener noreferrer" class="sd-icon-btn sd-icon-btn--ig" aria-label="Instagram">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg>
+                                </a>
+                                <?php endif; ?>
+
+                                <?php if ( $station_whatsapp ) : $wnum = preg_replace('/[^0-9]/', '', $station_whatsapp); ?>
+                                <a href="https://wa.me/<?php echo esc_attr($wnum); ?>" target="_blank" rel="noopener noreferrer" class="sd-icon-btn sd-icon-btn--wa" aria-label="WhatsApp">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12c0 2.1.6 4.2 1.6 6L0 24l6.2-1.6C8 23.4 10 24 12 24c6.6 0 12-5.4 12-12S18.6 0 12 0zm0 22c-1.9 0-3.7-.5-5.3-1.4l-.4-.2-3.7 1 1-3.6-.2-.4C2.5 15.8 2 13.9 2 12 2 6.5 6.5 2 12 2s10 4.5 10 10-4.5 10-10 10zm5.5-7.5c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-1 1.2-.2.2-.4.2-.7.1-.3-.2-1.4-.5-2.6-1.6-1-.9-1.6-2-1.8-2.3-.2-.3 0-.5.1-.7l.5-.6.3-.6v-.6c-.1-.2-.7-1.8-1-2.4-.3-.6-.5-.5-.7-.5h-.6c-.2 0-.6.1-.9.4-.3.3-1.1 1.1-1.1 2.6 0 1.5 1.1 3 1.2 3.2.2.2 2.2 3.4 5.4 4.7 3.2 1.3 3.2.9 3.7.8.6-.1 1.8-.7 2.1-1.4.3-.7.3-1.3.2-1.4-.1-.1-.3-.2-.6-.3z"/></svg>
+                                </a>
+                                <?php endif; ?>
+
+                                <?php if ( $station_viber ) : $vnum = preg_replace('/\s+/', '', $station_viber); ?>
+                                <a href="viber://chat?number=<?php echo esc_attr($vnum); ?>" class="sd-icon-btn sd-icon-btn--vi" aria-label="Viber">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.4 0C5.5.3 1 4.6.5 10.5c-.3 3 .5 5.8 2.1 8l-1.4 4.2 4.4-1.4c2 1.3 4.4 2 6.9 1.9 6.2-.3 11-5.5 11-11.7C23.5 4.9 18 0 11.4 0zm.6 19.5c-2 0-3.9-.6-5.4-1.6l-3.8 1.2 1.2-3.7C2.7 13.8 2 11.9 2 9.9 2 4.7 6.2.8 11.4.8c5.1 0 9.4 3.9 9.6 9 .2 5.4-4 9.7-9 9.7zm5.2-7c-.3-.2-1.7-.8-1.9-.9-.3-.1-.5-.1-.7.1-.2.3-.7.9-.9 1.1-.2.2-.3.2-.6.1-.3-.2-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.6-2.1-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5-.1-.2-.7-1.6-.9-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4 0 1.4 1 2.8 1.2 3 .2.2 2 3.1 4.9 4.3 2.8 1.2 2.8.8 3.3.7.5-.1 1.7-.7 1.9-1.3.2-.7.2-1.2.1-1.3z"/></svg>
+                                </a>
+                                <?php endif; ?>
+
+                                <?php if ( $station_tiktok ) : $u = radiotheme_social_url( $station_tiktok, 'https://tiktok.com/@' ); ?>
+                                <a href="<?php echo esc_url($u); ?>" target="_blank" rel="noopener noreferrer" class="sd-icon-btn sd-icon-btn--tt" aria-label="TikTok">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
+                                </a>
+                                <?php endif; ?>
+
+                                <?php if ( $station_youtube ) : $u = radiotheme_social_url( $station_youtube, 'https://youtube.com/' ); ?>
+                                <a href="<?php echo esc_url($u); ?>" target="_blank" rel="noopener noreferrer" class="sd-icon-btn sd-icon-btn--yt" aria-label="YouTube">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                                </a>
+                                <?php endif; ?>
+
+                            </div>
+                            <?php endif; ?>
+
+                            <!-- Website / Telefon / E-posta linkleri -->
+                            <div class="sd-action-links">
+                                <?php if ( $website ) : ?>
+                                <a href="<?php echo esc_url( $website ); ?>" target="_blank" rel="noopener noreferrer" class="sd-action-link" itemprop="url">
+                                    <svg viewBox="0 0 16 16" fill="none"><path d="M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 2h4m0 0v4m0-4L8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    <?php esc_html_e( 'Website', 'radiotheme' ); ?>
+                                </a>
+                                <?php endif; ?>
+                                <?php if ( $station_phone ) : ?>
+                                <a href="tel:<?php echo esc_attr( preg_replace('/\s+/','',$station_phone) ); ?>" class="sd-action-link">
+                                    <svg viewBox="0 0 16 16" fill="none"><path d="M4.41 7.19a10.03 10.03 0 0 0 4.4 4.4l1.47-1.47a.67.67 0 0 1 .67-.16c.74.25 1.55.38 2.38.38.37 0 .67.3.67.67v2.32c0 .37-.3.67-.67.67C6.07 14 2 9.93 2 4.67 2 4.3 2.3 4 2.67 4H5c.37 0 .67.3.67.67 0 .84.13 1.64.38 2.38a.67.67 0 0 1-.16.67l-1.48 1.47z" stroke="currentColor" stroke-width="1.2"/></svg>
+                                    <?php echo esc_html( $station_phone ); ?>
+                                </a>
+                                <?php endif; ?>
+                                <?php if ( $station_email ) : ?>
+                                <a href="mailto:<?php echo esc_attr( $station_email ); ?>" class="sd-action-link">
+                                    <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M1 4l7 5 7-5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+                                    <?php echo esc_html( $station_email ); ?>
+                                </a>
+                                <?php endif; ?>
+                            </div>
+
+                        </div><!-- .sd-bottom-bar -->
+
+                        <!-- Ses kontrolü -->
+                        <?php if ( $stream_url ) : ?>
+                        <div class="sd-volume" id="station-volume-control">
+                            <button class="station-volume-btn" id="station-volume-btn" aria-label="<?php esc_attr_e( 'Mute', 'radiotheme' ); ?>">
+                                <svg class="icon-vol-on" viewBox="0 0 24 24" fill="none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                                <svg class="icon-vol-off" viewBox="0 0 24 24" fill="none" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" stroke="currentColor" stroke-width="1.8" fill="none"/><line x1="23" y1="9" x2="17" y2="15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="17" y1="9" x2="23" y2="15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                            </button>
+                            <input type="range" id="station-volume-slider" class="station-volume-slider" min="0" max="1" step="0.05" value="1" aria-label="<?php esc_attr_e( 'Volume', 'radiotheme' ); ?>">
+                            <span class="station-volume-label" id="station-volume-label" aria-live="polite">100%</span>
+                        </div>
+                        <?php endif; ?>
+
+                        <!-- Adres -->
+                        <?php if ( $station_address ) : ?>
+                        <div class="sd-address">
+                            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2C6.69 2 4 4.69 4 8c0 4.5 6 10 6 10s6-5.5 6-10c0-3.31-2.69-6-6-6zm0 8.5A2.5 2.5 0 1 1 10 5.5a2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg>
+                            <span><?php echo nl2br( esc_html( $station_address ) ); ?></span>
+                        </div>
+                        <?php endif; ?>
+
+                    </div><!-- .sd-info -->
+                </div><!-- .sd-hero -->
+            </div><!-- .sd-card -->
+
+            <!-- Benzer İstasyonlar -->
+            <?php
+            $related_args = [
+                'post_type'      => 'radio-station',
+                'post_status'    => 'publish',
+                'posts_per_page' => 10,
+                'post__not_in'   => [ $main_station_id ],
+                'lang'           => '',
+            ];
+            if ( $genres && ! is_wp_error( $genres ) ) {
+                $related_args['tax_query'] = [ [ 'taxonomy' => 'radio-genre', 'field' => 'term_id', 'terms' => wp_list_pluck( $genres, 'term_id' ) ] ];
+            }
+            $related = new WP_Query( $related_args );
+            if ( $related->have_posts() ) : ?>
+            <section class="related-stations">
+                <h2 class="section-title"><?php esc_html_e( 'Similar Stations', 'radiotheme' ); ?></h2>
+                <div class="radio-list" role="list">
+                    <?php while ( $related->have_posts() ) : $related->the_post();
+                        get_template_part( 'template-parts/radio-card' );
+                    endwhile; wp_reset_postdata(); ?>
+                </div>
+            </section>
+            <?php endif; ?>
+
+        </article>
+
+        <?php get_sidebar(); ?>
+
+    </div>
+</main>
+
+<?php endwhile; ?>
+<?php get_footer(); ?>
